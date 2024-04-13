@@ -1,0 +1,4 @@
+.uuid
+tmux/.tmux/plugins/*
+workspace/*
+**/workspace/*
