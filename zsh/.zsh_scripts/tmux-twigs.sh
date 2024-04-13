@@ -3,12 +3,8 @@
 tmux_running=$(pgrep tmux)
 tmux_active=$(echo $TMUX)
 is_kill="";
-is_cd=""
 if [[ $1 == "k" ]]; then
     is_kill=true;
-fi
-if [[ $1 == "cd" ]]; then
-    is_cd=true;
 fi
 
 if [[ -z $tmux_active ]]; then
@@ -20,16 +16,6 @@ if [[ -z $tmux_active ]]; then
 fi
 
 if [[ $tmux_running ]]; then
-    if [[ $is_cd ]]; then
-        current_session=$(tmux display-message -p '#S')
-        current_window=$(tmux display-message -p '#W')
-        # current_dir=$(pwd)
-        # tmux send-prefix -t $current_session:$current_window
-        # tmux send-keys -t $current_session:$current_window "^-b" ":attach -c $current_dir -t $current_session"
-        tmux a -c $current_dir -t $current_session
-        return;
-    fi
-    
     s=$(tmux ls | awk '{print $1}' | fzf --print-query | tail -1)
 
     if [[ -z $s ]]; then
