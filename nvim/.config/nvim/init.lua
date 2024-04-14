@@ -39,7 +39,6 @@ vim.o.laststatus = 3
 vim.o.hlsearch = false
 vim.wo.number = true
 vim.o.mouse = 'a'
--- vim.o.clipboard = 'unnamedplus'
 vim.o.breakindent = true
 vim.o.undofile = true
 vim.o.ignorecase = true
@@ -59,7 +58,16 @@ vim.keymap.set({ 'n', 'v' }, "<C-l>", "<C-w>l")
 vim.keymap.set({ 'n', 'v' }, "<C-v>", "<C-w>v<C-w>l")
 vim.keymap.set({ 'n', 'v' }, "<leader>6", "<C-^>")
 vim.keymap.set({ 'n', 'v' }, '<leader>yq', function() vim.cmd('cexpr []') end, { desc = "Clear Quickfix List" })
--- vim.keymap.set({ 'n', 'v' }, "<leader>yy", "\"\"+y", { desc = "Copy to Clipboard from Register" })
+vim.keymap.set({ 'n', 'v' }, "<leader>yp",
+  function()
+    local default_reg_contents = vim.fn.getreg("\"");
+    vim.fn.setreg("+", default_reg_contents);
+  end, { desc = "Copy to Clipboard from Register" })
+vim.keymap.set({ 'n', 'v' }, "<leader>yy",
+  function()
+    local clip_contents = vim.fn.getreg("+");
+    vim.fn.setreg("\"", clip_contents);
+  end, { desc = "Copy from Clipboard to Register" })
 vim.keymap.set({ 'n', 'v', 'i' }, "<C-t>", function() twigsmux.switch() end, { desc = "Twigsmux" })
 -- [[ Basic Keymaps ]]
 vim.keymap.set({ 'n', 'v' }, '<Space>', '<Nop>', { silent = true })
