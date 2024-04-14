@@ -35,6 +35,7 @@ if [[ $tmux_running ]]; then
     s=$(tmux ls | awk '{print $1}' | fzf --print-query | tail -1)
 
     if [[ -z $s ]]; then
+        tmux kill-session -t twigsmux;
         return;
     fi
 
