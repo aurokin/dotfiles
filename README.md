@@ -1,5 +1,6 @@
 # Dotfiles
 - Theme: Tokyo Night
+- Tmux Session Management: twigsmux (.zsh_scripts/twigsmux.sh && .tmux.conf && neovim config)
 
 ### References
 - Neovim Config: https://github.com/nvim-lua/kickstart.nvim
