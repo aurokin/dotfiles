@@ -57,7 +57,7 @@ alias gd="git diff"
 alias gp="git push"
 alias gcb="git checkout \$(git branch | fzf)"
 alias rr="rm -rf"
-alias tmt="source ~/.zsh_scripts/tmux-twigs.sh"
+alias twm="source ~/.zsh_scripts/twigsmux.sh"
 alias zshrd="source ~/.zshrc"
 
 # Bat Tokyo Night
@@ -77,8 +77,8 @@ alias fd="cd \$(find /home /Users ~ ~/downloads ~/workspace ~/Downloads ~/roms ~
 alias fcd="cd \$(find * -type d | fzf)"
 # alias frd="cd / && cd \$(find * -typed | fzf)"
 
-bindkey -s ^t "tmt\n"
-bindkey -s ^k "tmt k\n"
+bindkey -s ^t "twm\n"
+bindkey -s ^k "twm k\n"
 # Load Local Alias
 # If File Exists
 PC_NAME=$(uname -n)

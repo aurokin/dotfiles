@@ -20,6 +20,8 @@ require('lazy').setup({
   { import = 'custom.plugins' },
 }, {})
 
+local twigsmux = require('twigsmux');
+
 -- [[ Auro Setting options ]]
 vim.wo.numberwidth = 5;
 vim.wo.relativenumber = true;
@@ -56,9 +58,16 @@ vim.keymap.set({ 'n', 'v' }, "<C-k>", "<C-w>k")
 vim.keymap.set({ 'n', 'v' }, "<C-l>", "<C-w>l")
 vim.keymap.set({ 'n', 'v' }, "<C-v>", "<C-w>v<C-w>l")
 vim.keymap.set({ 'n', 'v' }, "<leader>6", "<C-^>")
-vim.keymap.set({ 'n', 'v', 'i' }, "<C-t>", function() os.execute("source ~/.zsh_scripts/tmux-twigs.sh") end)
-vim.keymap.set({ 'n', 'v', 'i' }, "<C-k>", function() os.execute("source ~/.zsh_scripts/tmux-twigs.sh k") end)
-vim.keymap.set('n', '<leader>yq', function() vim.cmd('cexpr []') end, { desc = "Clear Quickfix List" })
+vim.keymap.set({ 'n', 'v' }, '<leader>yq', function() vim.cmd('cexpr []') end, { desc = "Clear Quickfix List" })
+vim.keymap.set({ 'n', 'v', 'i' }, "<C-t>", function()
+  print(twigsmux.msg)
+  -- vim.cmd("terminal source ~/.zsh_scripts/tmux-twigs.sh")
+end)
+-- vim.keymap.set({ 'n', 'v', 'i' }, "<C-t>",
+--   function()
+--     os.execute("source ~/.zsh_scripts/tmux-twigs.sh")
+--   end)
+-- vim.keymap.set({ 'n', 'v', 'i' }, "<C-k>", function() os.execute("source ~/.zsh_scripts/tmux-twigs.sh k") end)
 
 -- [[ Basic Keymaps ]]
 vim.keymap.set({ 'n', 'v' }, '<Space>', '<Nop>', { silent = true })
