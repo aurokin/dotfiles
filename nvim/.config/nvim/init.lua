@@ -50,7 +50,7 @@ vim.o.completeopt = 'menuone,noselect'
 vim.o.termguicolors = true
 
 -- [[ Auro Keymaps ]]
-vim.keymap.set('n', 'V', "<C-v>")
+vim.keymap.set('n', 'vv', "<C-v>")
 vim.keymap.set({ 'n', 'v' }, "<C-w>v", "<C-w>v<C-w>l")
 vim.keymap.set({ 'n', 'v' }, "<C-h>", "<C-w>h")
 vim.keymap.set({ 'n', 'v' }, "<C-j>", "<C-w>j")
