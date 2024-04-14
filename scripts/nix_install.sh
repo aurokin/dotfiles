@@ -21,6 +21,7 @@ nix-env -iA nixpkgs.fzf
 nix-env -iA nixpkgs.zoxide
 nix-env -iA nixpkgs.stow
 nix-env -iA nixpkgs.ripgrep
+nix-env -iA nixpkgs.fd
 nix-env -iA nixpkgs.tree
 nix-env -iA nixpkgs.delta
 nix-env -iA nixpkgs.neovim
