@@ -27,6 +27,3 @@
 	defaultBranch = master
 [include]
     path = ~/.gitconfiglocal
-# .gitconfiglocal
-# [user]
-# email = auro@hsadler.com
