@@ -78,7 +78,7 @@ alias fcd="cd \$(find * -type d | fzf)"
 # alias frd="cd / && cd \$(find * -typed | fzf)"
 
 bindkey -s ^t "twm\n"
-bindkey -s ^k "twm k\n"
+bindkey -s ^i "twm k\n"
 # Load Local Alias
 # If File Exists
 PC_NAME=$(uname -n)

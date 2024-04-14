@@ -59,15 +59,8 @@ vim.keymap.set({ 'n', 'v' }, "<C-l>", "<C-w>l")
 vim.keymap.set({ 'n', 'v' }, "<C-v>", "<C-w>v<C-w>l")
 vim.keymap.set({ 'n', 'v' }, "<leader>6", "<C-^>")
 vim.keymap.set({ 'n', 'v' }, '<leader>yq', function() vim.cmd('cexpr []') end, { desc = "Clear Quickfix List" })
-vim.keymap.set({ 'n', 'v', 'i' }, "<C-t>", function()
-  print(twigsmux.msg)
-  -- vim.cmd("terminal source ~/.zsh_scripts/tmux-twigs.sh")
-end)
--- vim.keymap.set({ 'n', 'v', 'i' }, "<C-t>",
---   function()
---     os.execute("source ~/.zsh_scripts/tmux-twigs.sh")
---   end)
--- vim.keymap.set({ 'n', 'v', 'i' }, "<C-k>", function() os.execute("source ~/.zsh_scripts/tmux-twigs.sh k") end)
+vim.keymap.set({ 'n', 'v', 'i' }, "<C-t>", function() twigsmux.switch() end)
+vim.keymap.set({ 'n', 'v', 'i' }, "<C-i>", function() twigsmux.kill() end)
 
 -- [[ Basic Keymaps ]]
 vim.keymap.set({ 'n', 'v' }, '<Space>', '<Nop>', { silent = true })

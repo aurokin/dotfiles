@@ -16,6 +16,22 @@ if [[ -z $tmux_active ]]; then
 fi
 
 if [[ $tmux_running ]]; then
+    current_session=$(tmux display-message -p '#S')
+
+    if [[ $current_session != "twigsmux" ]]; then
+        if tmux has-session -t=$current_session > /dev/null; then
+            tmux new-session -ds twigsmux -c ~
+        fi
+        tmux switch-client -t twigsmux
+
+        if [[ $is_kill = true ]]; then
+            tmux send-keys -t twigsmux "source ~/.zsh_scripts/twigsmux.sh k" enter
+        else
+            tmux send-keys -t twigsmux "source ~/.zsh_scripts/twigsmux.sh" enter
+        fi
+        return;
+    fi
+
     s=$(tmux ls | awk '{print $1}' | fzf --print-query | tail -1)
 
     if [[ -z $s ]]; then
@@ -35,4 +51,6 @@ if [[ $tmux_running ]]; then
             tmux kill-session -t $s_cut
         fi
     fi
+
+    tmux kill-session -t twigsmux
 fi
