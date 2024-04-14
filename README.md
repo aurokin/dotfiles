@@ -4,6 +4,7 @@
 - OSX Window Manager: Amethyst
 - Shell: Zsh (Pure Prompt)
 - Terminal: Alacritty
+- Text Editor: Neovim
 - Theme: Tokyo Night
 - Tmux Session Management: twigsmux (.zsh_scripts/twigsmux.sh && .tmux.conf && neovim config)
 
