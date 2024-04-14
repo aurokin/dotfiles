@@ -10,15 +10,15 @@ twigsmux.execute = function(kill)
     end
 
     local dir = string.format("%s/.zsh_scripts", vim.env.HOME);
-    local args = string.format("%s/twigsmux.sh", dir);
+    local args = { [1] = string.format("%s/twigsmux.sh", dir) };
     if (kill) then
-        args = string.format("%s k", args);
+        args[2] = "k";
     end
 
     Job:new({
         command = 'bash',
         cwd = '/usr/bin',
-        args = { args },
+        args = args,
     }):start()
 end
 
