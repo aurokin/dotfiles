@@ -1,5 +1,13 @@
--- You can add your own plugins here or in other files in this directory!
---  I promise not to create any merge conflicts in this directory :)
---
--- See the kickstart.nvim README for more information
-return {}
+return {
+    -- git
+    'tpope/vim-fugitive',
+    'tpope/vim-rhubarb',
+    -- comment
+    'numToStr/Comment.nvim',
+    -- paperplanes
+    "rktjmp/paperplanes.nvim",
+    -- peekup
+    "gennaro-tedesco/nvim-peekup",
+    -- vim-be-good
+    'ThePrimeagen/vim-be-good'
+}
