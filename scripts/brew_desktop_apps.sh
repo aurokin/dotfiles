@@ -18,4 +18,5 @@ brew install --cask the-unarchiver
 brew install --cask adobe-creative-cloud
 brew install --cask fx-cast-bridge
 brew install --cask arc
+brew install --cask caffeine
 brew install docker
