@@ -83,6 +83,8 @@ bindkey -s ^t "twm\n"
 PC_NAME=$(uname -n)
 if [[ $PC_NAME == "barry" ]]; then
     source /home/auro/.barry.zsh  
+elif [[ $PC_NAME == "L126228" ]]; then
+    source /Users/hsadler/.L126228.zsh
 fi
 
 # Zoxide
