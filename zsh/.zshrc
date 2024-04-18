@@ -25,6 +25,7 @@ export NIXPKGS_ALLOW_UNFREE=1
 
 # LANG
 export JDTLS_ENABLED=false;
+export JDTLS_DIR="/usr/local/lib/jdtls"
 if [[ $OSTYPE == *"darwin"* ]]; then
     # OSX
     user=`id -un`
@@ -38,7 +39,6 @@ if [[ $OSTYPE == *"darwin"* ]]; then
     export PATH="/nix/var/nix/profiles/default/bin:$PATH"
 else
     export OS="unix"
-    export JDTLS_DIR="/usr/local/lib/jdtls"
     export GLOBAL_NODE_MODULES="/usr/lib/node_modules" 
     export PATH="/opt/swift/usr/bin:$PATH"
     export PATH="/nix/var/nix/profiles/default/bin:$PATH"
@@ -55,6 +55,7 @@ alias gc="git commit"
 alias gs="git status"
 alias gd="git diff"
 alias gp="git push"
+alias jdtls="export JDTLS_ENABLED=true"
 alias gcb="git checkout \$(git branch | fzf)"
 alias rr="rm -rf"
 alias twm="source ~/.zsh_scripts/twigsmux.sh"
