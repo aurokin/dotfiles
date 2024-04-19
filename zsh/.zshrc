@@ -39,6 +39,7 @@ if [[ $OSTYPE == *"darwin"* ]]; then
     export PATH="/opt/homebrew/opt/openjdk@17/bin:$PATH"
     export PATH="/nix/var/nix/profiles/default/bin:$PATH"
     export PATH="/Users/$user/.cargo/bin:$PATH"
+    export PATH="/Users/$user/.bin:$PATH"
 else
     export OS="unix"
     export GLOBAL_NODE_MODULES="/usr/lib/node_modules" 
@@ -46,7 +47,7 @@ else
     export PATH="/nix/var/nix/profiles/default/bin:$PATH"
     export PATH="/home/$user/.nix-profile/bin:$PATH"
     export PATH="/home/$user/.cargo/bin:$PATH"
-    export PATH="/home/$user/.bin/:$PATH"
+    export PATH="/home/$user/.bin:$PATH"
 fi
 
 # Set Aliases
