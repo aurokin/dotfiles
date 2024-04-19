@@ -27,6 +27,9 @@ export NIXPKGS_ALLOW_UNFREE=1
 export JDTLS_ENABLED=false;
 export JDTLS_DIR="/usr/local/lib/jdtls"
 
+# XDG
+export XDG_CONFIG_HOME="$HOME/.config"
+
 user=`id -un`
 if [[ $OSTYPE == *"darwin"* ]]; then
     # OSX
