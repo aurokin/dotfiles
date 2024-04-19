@@ -26,9 +26,10 @@ export NIXPKGS_ALLOW_UNFREE=1
 # LANG
 export JDTLS_ENABLED=false;
 export JDTLS_DIR="/usr/local/lib/jdtls"
+
+user=`id -un`
 if [[ $OSTYPE == *"darwin"* ]]; then
     # OSX
-    user=`id -un`
     export OS="darwin";
     export GLOBAL_NODE_MODULES="/opt/homebrew/lib/node_modules"
     export PATH="/Users/$user/.nix-profile/bin:$PATH"
@@ -37,12 +38,15 @@ if [[ $OSTYPE == *"darwin"* ]]; then
     export PATH="/opt/homebrew/lib/ruby/gems/3.3.0/bin:$PATH"
     export PATH="/opt/homebrew/opt/openjdk@17/bin:$PATH"
     export PATH="/nix/var/nix/profiles/default/bin:$PATH"
+    export PATH="/Users/$user/.cargo/bin:$PATH"
 else
     export OS="unix"
     export GLOBAL_NODE_MODULES="/usr/lib/node_modules" 
     export PATH="/opt/swift/usr/bin:$PATH"
     export PATH="/nix/var/nix/profiles/default/bin:$PATH"
     export PATH="/home/$user/.nix-profile/bin:$PATH"
+    export PATH="/home/$user/.cargo/bin:$PATH"
+    export PATH="/home/$user/.bin/:$PATH"
 fi
 
 # Set Aliases
@@ -74,7 +78,7 @@ export FZF_DEFAULT_OPTS="$FZF_DEFAULT_OPTS \
 # FZF CD Alias
 # Hidden Folders are also an issue
 # For below to work we need to filter out library files or others we don't have perms to
-alias fd="cd \$(find /home /Users ~ ~/downloads ~/workspace ~/Downloads ~/roms ~/notes ~/code ~/images -mindepth 1 -maxdepth 1 -type d | fzf) && clear"
+alias fd="cd \$(find /home /pluto /MURF /Users ~ ~/downloads ~/workspace ~/Downloads ~/roms ~/notes ~/code ~/images -mindepth 1 -maxdepth 1 -type d | fzf) && clear"
 alias fcd="cd \$(find * -type d | fzf)"
 # alias frd="cd / && cd \$(find * -typed | fzf)"
 
