@@ -32,6 +32,7 @@ nix-env -iA nixpkgs.gdu
 nix-env -iA nixpkgs.rclone
 nix-env -iA nixpkgs.termscp
 nix-env -iA nixpkgs.lazydocker
+nix-env -iA nixpkgs.lazygit
 
 nix-env -iA nixpkgs.yarn
 nix-env -iA nixpkgs.typescript
