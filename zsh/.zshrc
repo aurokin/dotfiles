@@ -85,7 +85,7 @@ export FZF_DEFAULT_OPTS="$FZF_DEFAULT_OPTS \
 # FZF CD Alias
 # Hidden Folders are also an issue
 # For below to work we need to filter out library files or others we don't have perms to
-alias fd="cd \$(find /home /pluto /MURF /Users ~ ~/downloads ~/workspace ~/Downloads ~/roms ~/notes ~/code ~/images -mindepth 1 -maxdepth 1 -type d | fzf) && clear"
+alias fwd="cd \$(find /home /pluto /MURF /Users ~ ~/downloads ~/workspace ~/Downloads ~/roms ~/notes ~/code ~/images -mindepth 1 -maxdepth 1 -type d | fzf) && clear"
 alias fcd="cd \$(find * -type d | fzf)"
 # alias frd="cd / && cd \$(find * -typed | fzf)"
 
