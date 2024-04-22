@@ -1,5 +1,10 @@
 #!/bin/bash
 
+record_session() {
+    rm ~/.twigsmux
+    echo $1 > ~/.twigsmux
+}
+
 tmux_running=$(pgrep tmux)
 tmux_active=$(echo $TMUX)
 is_kill="";
@@ -9,6 +14,11 @@ if [[ $1 == "k" ]]; then
 fi
 if [[ $1 == "l" ]]; then
     is_last=true;
+fi
+if [[ $1 == "r" ]]; then
+    current_session=$(tmux display-message -p '#S')
+    record_session;
+    return;
 fi
 
 if [[ -z $tmux_active ]]; then
@@ -25,17 +35,15 @@ if [[ $tmux_running ]]; then
     if [[ $is_last ]]; then
         last_session=$(cat ~/.twigsmux)
 
-        if tmux has-session -t=$last_session > /dev/null; then
-            rm ~/.twigsmux
-            echo $current_session > ~/.twigsmux
+        if tmux has-session -t=$last_session 2> /dev/null && [[ $last_session != "twigsmux" ]] && [[ $current_session != "twigsmux" ]]; then
+            record_session $current_session
             tmux switch-client -t $last_session
         fi
         return;
     fi
 
     if [[ $current_session != "twigsmux" ]]; then
-        rm ~/.twigsmux
-        echo $current_session > ~/.twigsmux
+        record_session $current_session
 
         tmux kill-session -t twigsmux;
         tmux new-session -ds twigsmux -c ~
