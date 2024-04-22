@@ -18,7 +18,7 @@ fi
 if [[ $1 == "r" ]]; then
     current_session=$(tmux display-message -p '#S')
     record_session;
-    return;
+    exit 0;
 fi
 
 if [[ -z $tmux_active ]]; then
@@ -39,7 +39,7 @@ if [[ $tmux_running ]]; then
             record_session $current_session
             tmux switch-client -t $last_session
         fi
-        return;
+        exit 0;
     fi
 
     if [[ $current_session != "twigsmux" ]]; then
@@ -54,14 +54,14 @@ if [[ $tmux_running ]]; then
         else
             tmux send-keys -t twigsmux "source ~/.zsh_scripts/twigsmux.sh" enter
         fi
-        return;
+        exit 0;
     fi
 
     s=$(tmux ls | awk '{print $1}' | fzf --print-query | tail -1)
 
     if [[ -z $s ]]; then
         tmux kill-session -t twigsmux;
-        return;
+        exit 0;
     fi
 
     s_cut=$(echo $s | rg -o -m 1 "^\w*")
