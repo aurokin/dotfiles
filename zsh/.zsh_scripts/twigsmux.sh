@@ -7,18 +7,21 @@ record_session() {
 
 tmux_running=$(pgrep tmux)
 tmux_active=$(echo $TMUX)
+is_default="";
 is_kill="";
 is_last="";
-if [[ $1 == "k" ]]; then
-    is_kill=true;
-fi
-if [[ $1 == "l" ]]; then
-    is_last=true;
-fi
-if [[ $1 == "r" ]]; then
-    current_session=$(tmux display-message -p '#S')
-    record_session;
-    exit 0;
+current_session="";
+
+if [[ -z $1 ]]; then
+    is_default=true;
+else
+    if [[ $1 == "k" ]]; then
+        is_kill=true;
+    elif [[ $1 == "l" ]]; then
+        is_last=true;
+    elif [[ $1 == "d" ]] then
+        is_default=true;
+    fi
 fi
 
 if [[ -z $tmux_active ]]; then
@@ -29,8 +32,13 @@ if [[ -z $tmux_active ]]; then
     fi
 fi
 
+if [[ -z $1 ]]; then
+    return 0;
+fi
+
 if [[ $tmux_running ]]; then
-    current_session=$(tmux display-message -p '#S')
+    running_session=$(tmux display-message -p '#S')
+    current_session=$(tmux display-message -p '#{client_last_session}')
 
     if [[ $is_last ]]; then
         last_session=$(cat ~/.twigsmux)
@@ -39,29 +47,25 @@ if [[ $tmux_running ]]; then
             record_session $current_session
             tmux switch-client -t $last_session
         fi
-        exit 0;
+
+        tmux kill-session -t twigsmux;
+        return 0;
     fi
 
     if [[ $current_session != "twigsmux" ]]; then
         record_session $current_session
+    fi
 
-        tmux kill-session -t twigsmux;
-        tmux new-session -ds twigsmux -c ~
-        tmux switch-client -t twigsmux
-
-        if [[ $is_kill = true ]]; then
-            tmux send-keys -t twigsmux "source ~/.zsh_scripts/twigsmux.sh k" enter
-        else
-            tmux send-keys -t twigsmux "source ~/.zsh_scripts/twigsmux.sh" enter
-        fi
-        exit 0;
+    if [[ $running_session != "twigsmux" ]]; then
+        return 0;
     fi
 
     s=$(tmux ls | awk '{print $1}' | fzf --print-query | tail -1)
 
     if [[ -z $s ]]; then
+        tmux switch-client -t $current_session;
         tmux kill-session -t twigsmux;
-        exit 0;
+        return 0;
     fi
 
     s_cut=$(echo $s | rg -o -m 1 "^\w*")
@@ -79,4 +83,5 @@ if [[ $tmux_running ]]; then
     fi
 
     tmux kill-session -t twigsmux
+    return 0;
 fi

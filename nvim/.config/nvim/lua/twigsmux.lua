@@ -23,11 +23,11 @@ twigsmux.execute = function(kill)
 end
 
 twigsmux.switch = function()
-    twigsmux.execute(false);
+    -- twigsmux.execute(false);
 end
 
 twigsmux.kill = function()
-    twigsmux.execute(true);
+    -- twigsmux.execute(true);
 end
 
 return twigsmux;
