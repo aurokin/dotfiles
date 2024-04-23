@@ -5,6 +5,7 @@
 # bind-key t new-session -A -s twigsmux 'source ~/.zsh_scripts/twigsmux.sh d' \; 
 # bind-key k new-session -A -s twigsmux 'source ~/.zsh_scripts/twigsmux.sh k' \;
 # bind-key L new-session -A -s twigsmux 'source ~/.zsh_scripts/twigsmux.sh l' \;
+# bind-key u attach-session -c "#{pane_current_path}"
 
 # If you are not inside tmux, calling the script will attach you to your tmux server, or create a server with a session specified below
 # Change these variables according to your preferences
