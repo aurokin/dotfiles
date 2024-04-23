@@ -6,6 +6,11 @@
 # bind-key k new-session -A -s twigsmux 'source ~/.zsh_scripts/twigsmux.sh k' \;
 # bind-key L new-session -A -s twigsmux 'source ~/.zsh_scripts/twigsmux.sh l' \;
 
+# Change these variables according to your preferences
+default_window="editor"
+default_session="default"
+# end
+
 record_session() {
     rm ~/.twigsmux
     echo $1 > ~/.twigsmux
@@ -40,7 +45,7 @@ if [[ -z $tmux_active ]]; then
     if [[ $tmux_running ]]; then
         $(tmux a);
     else
-        $(tmux new -s default -n editor -c ~);
+        $(tmux new -s $default_session -n $default_window -c ~);
     fi
 fi
 
@@ -77,7 +82,7 @@ if [[ $tmux_running ]]; then
 
     if [[ $is_default ]]; then
         if ! tmux has-session -t=$s_cut 2> /dev/null; then
-            tmux new-session -ds $s_cut -n editor -c ~
+            tmux new-session -ds $s_cut -n $default_window -c ~
         fi
 
         tmux switch-client -t $s_cut
