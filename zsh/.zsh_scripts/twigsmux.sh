@@ -16,7 +16,7 @@ if [[ $1 == "k" ]]; then
     is_kill=true;
 elif [[ $1 == "l" ]]; then
     is_last=true;
-elif [[ $1 == "d" ]] then
+elif [[ $1 == "d" ]]; then
     is_default=true;
 fi
 
