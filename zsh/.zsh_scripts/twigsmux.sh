@@ -24,7 +24,7 @@ if [[ -z $tmux_active ]]; then
     if [[ $tmux_running ]]; then
         $(tmux a);
     else
-        $(tmux new -s default);
+        $(tmux new -s default -n nvim -c ~);
     fi
 fi
 
@@ -69,7 +69,7 @@ if [[ $tmux_running ]]; then
 
     if [[ -z $is_kill ]]; then
         if ! tmux has-session -t=$s_cut 2> /dev/null; then
-            tmux new-session -ds $s_cut -c ~
+            tmux new-session -ds $s_cut -n nvim -c ~
         fi
 
         tmux switch-client -t $s_cut
