@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# This script expects you to be called in a tmux session called twigsmux, other than initial entry into tmux.
+# I recommend setting these keybinds in your .tmux.conf
+# bind-key t new-session -A -s twigsmux 'source ~/.zsh_scripts/twigsmux.sh d' \; 
+# bind-key k new-session -A -s twigsmux 'source ~/.zsh_scripts/twigsmux.sh k' \;
+# bind-key L new-session -A -s twigsmux 'source ~/.zsh_scripts/twigsmux.sh l' \;
+
 record_session() {
     rm ~/.twigsmux
     echo $1 > ~/.twigsmux
