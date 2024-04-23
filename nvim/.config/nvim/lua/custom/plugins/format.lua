@@ -20,6 +20,7 @@ return {
         conform.setup({
             formatters_by_ft = {
                 swift = { "swiftformat" },
+                sh = { "beautysh" }
             },
             log_level = vim.log.levels.ERROR,
         })
@@ -28,7 +29,7 @@ return {
             local filetype = vim.bo.filetype;
             if (prettier.config_exists()) then
                 vim.cmd('Prettier');
-            elseif (filetype == "swift") then
+            elseif (filetype == "swift" or filetype == "sh") then
                 conform.format({
                     lsp_fallback = false,
                     async = false,

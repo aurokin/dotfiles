@@ -113,6 +113,7 @@ return {
                     -- diagnostics = { disable = { 'missing-fields' } },
                 },
             },
+            bashls = {},
             -- volar = {},
         }
 

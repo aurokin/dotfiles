@@ -41,4 +41,5 @@ nix-env -iA nixpkgs.xcbeautify
 nix-env -iA nixpkgs.prettierd
 nix-env -iA nixpkgs.watchman
 nix-env -iA nixpkgs.ranger
+nix-env -iA nixpkgs.beautysh
 
