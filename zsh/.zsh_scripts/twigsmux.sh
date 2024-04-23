@@ -53,6 +53,7 @@ if [[ $tmux_running ]]; then
     fi
 
     if [[ $running_session != "twigsmux" ]]; then
+        tmux kill-session -t twigsmux;
         return 0;
     fi
 
