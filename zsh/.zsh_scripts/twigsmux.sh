@@ -12,16 +12,12 @@ is_kill="";
 is_last="";
 current_session="";
 
-if [[ -z $1 ]]; then
+if [[ $1 == "k" ]]; then
+    is_kill=true;
+elif [[ $1 == "l" ]]; then
+    is_last=true;
+elif [[ $1 == "d" ]] then
     is_default=true;
-else
-    if [[ $1 == "k" ]]; then
-        is_kill=true;
-    elif [[ $1 == "l" ]]; then
-        is_last=true;
-    elif [[ $1 == "d" ]] then
-        is_default=true;
-    fi
 fi
 
 if [[ -z $tmux_active ]]; then
