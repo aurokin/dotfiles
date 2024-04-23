@@ -21,7 +21,6 @@ tmux_active=$(echo $TMUX)
 is_default="";
 is_kill="";
 is_last="";
-current_session="";
 
 if [[ $1 == "k" ]]; then
     is_kill=true;
