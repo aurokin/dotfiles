@@ -4,6 +4,17 @@ record_session() {
     rm ~/.twigsmux
     echo $1 > ~/.twigsmux
 }
+go_to_last_session() {
+    last_session=$(cat ~/.twigsmux)
+
+    if tmux has-session -t=$last_session 2> /dev/null && [[ $last_session != "twigsmux" ]] && [[ $1 != "twigsmux" ]]; then
+        record_session $1
+        tmux switch-client -t $last_session
+    fi
+
+    tmux kill-session -t twigsmux;
+    return 0;
+}
 
 tmux_running=$(pgrep tmux)
 tmux_active=$(echo $TMUX)
@@ -36,25 +47,17 @@ if [[ $tmux_running ]]; then
     running_session=$(tmux display-message -p '#S')
     current_session=$(tmux display-message -p '#{client_last_session}')
 
-    if [[ $is_last ]]; then
-        last_session=$(cat ~/.twigsmux)
-
-        if tmux has-session -t=$last_session 2> /dev/null && [[ $last_session != "twigsmux" ]] && [[ $current_session != "twigsmux" ]]; then
-            record_session $current_session
-            tmux switch-client -t $last_session
-        fi
-
+    if [[ $running_session != "twigsmux" ]]; then
         tmux kill-session -t twigsmux;
         return 0;
+    fi
+
+    if [[ $is_last ]]; then
+        go_to_last_session $current_session
     fi
 
     if [[ $current_session != "twigsmux" ]]; then
         record_session $current_session
-    fi
-
-    if [[ $running_session != "twigsmux" ]]; then
-        tmux kill-session -t twigsmux;
-        return 0;
     fi
 
     s=$(tmux ls | awk '{print $1}' | fzf --print-query | tail -1)
@@ -67,15 +70,16 @@ if [[ $tmux_running ]]; then
 
     s_cut=$(echo $s | rg -o -m 1 "^\w*")
 
-    if [[ -z $is_kill ]]; then
+    if [[ $is_default ]]; then
         if ! tmux has-session -t=$s_cut 2> /dev/null; then
             tmux new-session -ds $s_cut -n editor -c ~
         fi
 
         tmux switch-client -t $s_cut
-    else
+    elif [[ $is_kill ]]; then
         if tmux has-session -t=$s_cut 2> /dev/null; then
             tmux kill-session -t $s_cut
+            go_to_last_session $current_session
         fi
     fi
 
