@@ -43,6 +43,7 @@ if [[ $OSTYPE == *"darwin"* ]]; then
     export PATH="/nix/var/nix/profiles/default/bin:$PATH"
     export PATH="/Users/$user/.cargo/bin:$PATH"
     export PATH="/Users/$user/.bin:$PATH"
+    export PATH="/Users/$user/.local/bin:$PATH"
 else
     export OS="unix"
     export GLOBAL_NODE_MODULES="/usr/lib/node_modules" 
@@ -51,6 +52,7 @@ else
     export PATH="/home/$user/.nix-profile/bin:$PATH"
     export PATH="/home/$user/.cargo/bin:$PATH"
     export PATH="/home/$user/.bin:$PATH"
+    export PATH="/home/$user/.local/bin:$PATH"
 fi
 
 # Set Aliases
