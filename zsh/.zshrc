@@ -89,7 +89,6 @@ alias fwd="cd \$(find /home /pluto /MURF /Users ~ ~/downloads ~/workspace ~/Down
 alias fcd="cd \$(find * -type d | fzf)"
 # alias frd="cd / && cd \$(find * -typed | fzf)"
 
-bindkey -s ^t "twm\n"
 # Load Local Alias
 # If File Exists
 PC_NAME=$(uname -n)
