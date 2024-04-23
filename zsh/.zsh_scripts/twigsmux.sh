@@ -55,16 +55,16 @@ if [[ $tmux_running ]]; then
         go_to_last_session $current_session
     fi
 
-    if [[ $current_session != "twigsmux" ]]; then
-        record_session $current_session
-    fi
-
     s=$(tmux ls | awk '{print $1}' | fzf --print-query | tail -1)
 
     if [[ -z $s ]]; then
         tmux switch-client -t $current_session;
         tmux kill-session -t twigsmux;
         return 0;
+    fi
+
+    if [[ $current_session != "twigsmux" ]]; then
+        record_session $current_session
     fi
 
     s_cut=$(echo $s | rg -o -m 1 "^\w*")
