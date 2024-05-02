@@ -58,6 +58,7 @@ fi
 # Set Aliases
 alias c="clear"
 alias e="exit"
+alias ds="directory-sync"
 alias lsl="eza -l"
 alias lsa="eza -la"
 alias lsz="eza"
