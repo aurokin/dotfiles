@@ -25,6 +25,7 @@ nix-env -iA nixpkgs.fd
 nix-env -iA nixpkgs.tree
 nix-env -iA nixpkgs.delta
 nix-env -iA nixpkgs.neovim
+nix-env -iA nixpkgs.unrar
 
 nix-env -iA nixpkgs.btop
 nix-env -iA nixpkgs.duf
