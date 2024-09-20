@@ -5,6 +5,8 @@ return {
         local lint = require("lint")
 
         lint.linters_by_ft = {
+            javascript = { "eslint" },
+            typescript = { "eslint" },
             swift = { "swiftlint" },
         }
 
@@ -22,4 +24,3 @@ return {
         end, { desc = "Lint file" })
     end,
 }
-
