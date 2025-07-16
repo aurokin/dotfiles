@@ -1,6 +1,5 @@
 return {
     'nvim-telescope/telescope.nvim',
-    branch = '0.1.x',
     dependencies = {
         'nvim-lua/plenary.nvim',
         {
@@ -37,9 +36,7 @@ return {
             end
 
             -- Find the Git root directory from the current file's path
-            local git_root = vim.fn.systemlist('git -C ' ..
-                vim.fn.escape(current_dir, ' ') .. ' rev-parse --show-toplevel')
-                [1]
+            local git_root = vim.fn.systemlist('git -C ' .. vim.fn.escape(current_dir, ' ') .. ' rev-parse --show-toplevel')[1]
             if vim.v.shell_error ~= 0 then
                 print 'Not a git repository. Searching on current working directory'
                 return cwd
@@ -59,10 +56,8 @@ return {
 
         vim.api.nvim_create_user_command('LiveGrepGitRoot', live_grep_git_root, {})
 
-        vim.keymap.set('n', '<leader>?', require('telescope.builtin').oldfiles,
-            { desc = '[?] Find recently opened files' })
-        vim.keymap.set('n', '<leader><space>', require('telescope.builtin').buffers,
-            { desc = '[ ] Find existing buffers' })
+        vim.keymap.set('n', '<leader>?', require('telescope.builtin').oldfiles, { desc = '[?] Find recently opened files' })
+        vim.keymap.set('n', '<leader><space>', require('telescope.builtin').buffers, { desc = '[ ] Find existing buffers' })
         vim.keymap.set('n', '<leader>f<space>', function()
             require('telescope.builtin').current_buffer_fuzzy_find(require('telescope.themes').get_dropdown {
                 winblend = 10,
@@ -85,5 +80,5 @@ return {
         vim.keymap.set('n', '<leader>gw', ':LiveGrepGitRoot<cr>', { desc = '[G]rep on Git Root [W]ord search' })
         vim.keymap.set('n', '<leader>sd', require('telescope.builtin').diagnostics, { desc = '[S]earch [D]iagnostics' })
         vim.keymap.set('n', '<leader>sr', require('telescope.builtin').resume, { desc = '[S]earch [R]esume' })
-    end
+    end,
 }
