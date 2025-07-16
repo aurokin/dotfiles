@@ -1,15 +1,18 @@
-return {
-    'folke/which-key.nvim',
-    opts = {},
-    config = function()
-        -- document existing key chains
-        require('which-key').register {
-        }
-        -- register which-key VISUAL mode
-        -- required for visual <leader>hs (hunk stage) to work
-        require('which-key').register({
-            ['<leader>'] = { name = 'VISUAL <leader>' },
-            -- ['<leader>h'] = { 'Git [H]unk' },
-        }, { mode = 'v' })
-    end
-};
+return  {
+  "folke/which-key.nvim",
+  event = "VeryLazy",
+  opts = {
+    -- your configuration comes here
+    -- or leave it empty to use the default settings
+    -- refer to the configuration section below
+  },
+  keys = {
+    {
+      "<leader>?",
+      function()
+        require("which-key").show({ global = false })
+      end,
+      desc = "Buffer Local Keymaps (which-key)",
+    },
+  },
+}

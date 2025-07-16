@@ -1,6 +1,6 @@
 return {
     "folke/trouble.nvim",
-    branch = "dev", -- v3
+    branch = "main", -- v3
     opts = {},
     config = function()
         local trouble = require("trouble");
