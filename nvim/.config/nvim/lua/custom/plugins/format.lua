@@ -3,49 +3,50 @@ return {
     dependencies = {
         'neovim/nvim-lspconfig',
         'jose-elias-alvarez/null-ls.nvim',
-        "stevearc/conform.nvim",
+        'stevearc/conform.nvim',
     },
     config = function()
-        local prettier = require("prettier");
+        local prettier = require 'prettier'
 
-        prettier.setup({
+        prettier.setup {
             bin = 'prettierd', -- npm install -g @fsouza/prettierd
             cli_options = {
                 tab_width = 4,
                 use_tabs = false,
-            }
-        });
+            },
+        }
 
-        local conform = require("conform")
-        conform.setup({
+        local conform = require 'conform'
+        conform.setup {
             formatters_by_ft = {
-                swift = { "swiftformat" },
-                sh = { "beautysh" }
+                lua = { 'stylua' },
+                swift = { 'swiftformat' },
+                sh = { 'beautysh' },
             },
             log_level = vim.log.levels.ERROR,
-        })
+        }
 
         local format = function()
-            local filetype = vim.bo.filetype;
-            if (prettier.config_exists()) then
-                vim.cmd('Prettier');
-            elseif (filetype == "swift" or filetype == "sh") then
-                conform.format({
+            local filetype = vim.bo.filetype
+            if prettier.config_exists() then
+                vim.cmd 'Prettier'
+            elseif filetype == 'swift' or filetype == 'sh' or filetype == 'lua' then
+                conform.format {
                     lsp_fallback = false,
                     async = false,
                     timeout_ms = 500,
-                })
-            elseif (vim.fn.exists(':Format') > 0 and filetype ~= "vue") then
-                vim.cmd('Format');
+                }
+            elseif vim.fn.exists ':Format' > 0 and filetype ~= 'vue' then
+                vim.cmd 'Format'
             end
 
-            vim.cmd('norm! zz');
+            vim.cmd 'norm! zz'
         end
 
-        vim.keymap.set('n', '<leader>fd', format, { desc = "[F]ormat [D]ocument" });
-        vim.api.nvim_create_autocmd("BufWritePre", {
-            group = vim.api.nvim_create_augroup("autoformat", { clear = true }),
+        vim.keymap.set('n', '<leader>fd', format, { desc = '[F]ormat [D]ocument' })
+        vim.api.nvim_create_autocmd('BufWritePre', {
+            group = vim.api.nvim_create_augroup('autoformat', { clear = true }),
             callback = format,
-        });
-    end
+        })
+    end,
 }

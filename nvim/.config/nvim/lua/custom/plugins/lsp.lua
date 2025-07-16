@@ -5,10 +5,11 @@ return {
         -- Automatically install LSPs to stdpath for neovim
         { 'williamboman/mason.nvim', config = true },
         'williamboman/mason-lspconfig.nvim',
+        'WhoIsSethDaniel/mason-tool-installer.nvim',
 
         -- Useful status updates for LSP
         -- NOTE: `opts = {}` is the same as calling `require('fidget').setup({})`
-        { 'j-hui/fidget.nvim',       opts = {} },
+        { 'j-hui/fidget.nvim', opts = {} },
 
         -- Additional lua configuration, makes nvim stuff amazing!
         'folke/neodev.nvim',
@@ -45,7 +46,7 @@ return {
 
             -- Lesser used LSP functionality
             nmap('<leader>lg', vim.lsp.buf.declaration, '[G]oto Declaration')
-            nmap('<leader>`', vim.lsp.buf.hover, '[L]sp [H]over');
+            nmap('<leader>`', vim.lsp.buf.hover, '[L]sp [H]over')
             nmap('<leader>lh', vim.lsp.buf.signature_help, 'Signature Documentation')
             nmap('<leader>wa', vim.lsp.buf.add_workspace_folder, '[W]orkspace [A]dd Folder')
             nmap('<leader>wr', vim.lsp.buf.remove_workspace_folder, '[W]orkspace [R]emove Folder')
@@ -54,15 +55,15 @@ return {
             end, '[W]orkspace [L]ist Folders')
 
             -- Create a command `:Format` local to the LSP buffer
-            if (client.supports_method("textDcoument/formatting")) then
+            if client.supports_method 'textDcoument/formatting' then
                 vim.api.nvim_buf_create_user_command(bufnr, 'Format', function(_)
-                    vim.lsp.buf.format({
+                    vim.lsp.buf.format {
                         tabSize = 4,
                         insertSpaces = true,
                         trimTrailingWhitespace = true,
                         insertFinalNewline = false,
                         trimFinalNewLines = true,
-                    });
+                    }
                 end, { desc = 'Format current buffer with LSP' })
             end
         end
@@ -79,28 +80,28 @@ return {
             rust_analyzer = {
                 cargo = {
                     allFeatures = true,
-                }
+                },
             },
-            tsserver = {
+            ts_ls = {
                 init_options = {
-                    hostInfo = "neovim",
+                    hostInfo = 'neovim',
                     preferences = {
-                        importModuleSpecifierPreference = "non-relative"
+                        importModuleSpecifierPreference = 'non-relative',
                     },
                     plugins = {
                         {
-                            name = "@vue/typescript-plugin",
+                            name = '@vue/typescript-plugin',
                             -- npm install -g @vue/typescript-plugin
-                            location = string.format("%s%s", npmModulesPath, "/@vue/typescript-plugin"),
-                            languages = { "javascript", "typescript", "vue" }
-                        }
-                    }
+                            location = string.format('%s%s', npmModulesPath, '/@vue/typescript-plugin'),
+                            languages = { 'javascript', 'typescript', 'vue' },
+                        },
+                    },
                 },
                 filetypes = {
-                    "javascript",
-                    "typescript",
-                    "vue",
-                }
+                    'javascript',
+                    'typescript',
+                    'vue',
+                },
             },
             html = { filetypes = { 'html', 'twig', 'hbs' } },
             jsonls = {},
@@ -114,15 +115,16 @@ return {
                 },
             },
             bashls = {},
+            stylua = {},
             -- volar = {},
         }
 
-        if (vim.env.OS == "darwin") then
-            require 'lspconfig'.sourcekit.setup {}
+        if vim.env.OS == 'darwin' then
+            require('lspconfig').sourcekit.setup {}
         end
 
-        if (vim.env.JDTLS_ENABLED == "true") then
-            servers.jdtls = {};
+        if vim.env.JDTLS_ENABLED == 'true' then
+            servers.jdtls = {}
         end
 
         -- Setup neovim lua configuration
@@ -133,22 +135,22 @@ return {
         capabilities = require('cmp_nvim_lsp').default_capabilities(capabilities)
 
         -- Ensure the servers above are installed
+        require('mason-tool-installer').setup { ensure_installed = vim.tbl_keys(servers) }
         local mason_lspconfig = require 'mason-lspconfig'
 
         mason_lspconfig.setup {
-            ensure_installed = vim.tbl_keys(servers),
-        }
-
-        mason_lspconfig.setup_handlers {
-            function(server_name)
-                require('lspconfig')[server_name].setup {
-                    capabilities = capabilities,
-                    on_attach = on_attach,
-                    settings = servers[server_name],
-                    filetypes = (servers[server_name] or {}).filetypes,
-                    init_options = (servers[server_name] or {}).init_options,
-                }
-            end,
+            ensure_installed = {},
+            handlers = {
+                function(server_name)
+                    require('lspconfig')[server_name].setup {
+                        capabilities = capabilities,
+                        on_attach = on_attach,
+                        settings = servers[server_name],
+                        filetypes = (servers[server_name] or {}).filetypes,
+                        init_options = (servers[server_name] or {}).init_options,
+                    }
+                end,
+            },
         }
 
         -- [[ Configure nvim-cmp ]]
@@ -202,5 +204,5 @@ return {
                 { name = 'path' },
             },
         }
-    end
-};
+    end,
+}
