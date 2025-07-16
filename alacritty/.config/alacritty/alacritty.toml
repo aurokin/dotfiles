@@ -1,6 +1,3 @@
-import = [
-    "~/.config/alacritty/tokyo-night.toml"
-]
 
 [window]
 padding = { x = 10, y = 10 }
@@ -13,3 +10,8 @@ bold = { family = "RobotoMono Nerd Font", style = "Bold" }
 italic = { family = "RobotoMono Nerd Font", style = "Italic" }
 bold_italic = { family = "RobotoMono Nerd Font", style = "BoldItalic" }
 size = 15
+
+[general]
+import = [
+    "~/.config/alacritty/tokyo-night.toml"
+]
