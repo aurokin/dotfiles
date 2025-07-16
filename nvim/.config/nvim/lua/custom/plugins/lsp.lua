@@ -10,9 +10,19 @@ return {
         -- Useful status updates for LSP
         -- NOTE: `opts = {}` is the same as calling `require('fidget').setup({})`
         { 'j-hui/fidget.nvim', opts = {} },
-
-        -- Additional lua configuration, makes nvim stuff amazing!
-        'folke/neodev.nvim',
+        -- Allows extra capabilities provided by blink.cmp
+        'saghen/blink.cmp',
+        {
+            'folke/lazydev.nvim',
+            ft = 'lua', -- only load on lua files
+            opts = {
+                library = {
+                    -- See the configuration section for more details
+                    -- Load luvit types when the `vim.uv` word is found
+                    { path = '${3rd}/luv/library', words = { 'vim%.uv' } },
+                },
+            },
+        },
     },
     config = function()
         -- [[ Configure LSP ]]
@@ -127,12 +137,7 @@ return {
             servers.jdtls = {}
         end
 
-        -- Setup neovim lua configuration
-        require('neodev').setup()
-
-        -- nvim-cmp supports additional completion capabilities, so broadcast that to servers
-        local capabilities = vim.lsp.protocol.make_client_capabilities()
-        capabilities = require('cmp_nvim_lsp').default_capabilities(capabilities)
+        local capabilities = require('blink.cmp').get_lsp_capabilities()
 
         -- Ensure the servers above are installed
         require('mason-tool-installer').setup { ensure_installed = vim.tbl_keys(servers) }
@@ -142,13 +147,10 @@ return {
             ensure_installed = {},
             handlers = {
                 function(server_name)
-                    require('lspconfig')[server_name].setup {
-                        capabilities = capabilities,
-                        on_attach = on_attach,
-                        settings = servers[server_name],
-                        filetypes = (servers[server_name] or {}).filetypes,
-                        init_options = (servers[server_name] or {}).init_options,
-                    }
+                    local server = servers[server_name] or {}
+                    server.capabilities = vim.tbl_deep_extend('force', {}, capabilities, server.capabilities or {})
+                    server.on_attach = on_attach
+                    require('lspconfig')[server_name].setup(server)
                 end,
             },
         }
