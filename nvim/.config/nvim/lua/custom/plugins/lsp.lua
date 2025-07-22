@@ -3,8 +3,7 @@ return {
     'neovim/nvim-lspconfig',
     dependencies = {
         -- Automatically install LSPs to stdpath for neovim
-        { 'williamboman/mason.nvim', config = true },
-        'williamboman/mason-lspconfig.nvim',
+        { 'mason-org/mason.nvim', opts = {} },
         'WhoIsSethDaniel/mason-tool-installer.nvim',
 
         -- Useful status updates for LSP
@@ -77,80 +76,84 @@ return {
             end,
         })
 
-        require('mason').setup()
-        require('mason-lspconfig').setup()
-
-        local npmModulesPath = vim.env.GLOBAL_NODE_MODULES
         -- LSP Servers
-        local servers = {
-            -- clangd = {},
-            -- gopls = {},
-            -- pyright = {},
-            rust_analyzer = {
-                cargo = {
-                    allFeatures = true,
-                },
-            },
-            ts_ls = {
-                init_options = {
-                    hostInfo = 'neovim',
+        local npmModulesPath = vim.env.GLOBAL_NODE_MODULES
+        local vue_language_server_path = vim.fn.expand '$MASON/packages' .. '/vue-language-server' .. '/node_modules/@vue/language-server'
+        vim.lsp.config('rust_analyzer', {
+            cargo = { allFeatures = true },
+        })
+        vim.lsp.config('html', { filetypes = { 'html', 'twig', 'hbs' } })
+        vim.lsp.config('lua_ls', { Lua = { workspace = { checkThirdParty = false }, telemetry = { enable = false } } })
+        vim.lsp.config('vtsls', {
+            settings = {
+                typescript = {
                     preferences = {
-                        importModuleSpecifierPreference = 'non-relative',
+                        importModuleSpecifier = 'non-relative',
                     },
-                    plugins = {
-                        {
-                            name = '@vue/typescript-plugin',
-                            -- npm install -g @vue/typescript-plugin
-                            location = string.format('%s%s', npmModulesPath, '/@vue/typescript-plugin'),
-                            languages = { 'javascript', 'typescript', 'vue' },
+                },
+                vtsls = {
+                    tsserver = {
+                        globalPlugins = {
+                            {
+                                name = '@vue/typescript-plugin',
+                                location = vue_language_server_path,
+                                languages = { 'vue' },
+                                configNamespace = 'typescript',
+                            },
                         },
                     },
                 },
-                filetypes = {
-                    'javascript',
-                    'typescript',
-                    'vue',
-                },
             },
-            html = { filetypes = { 'html', 'twig', 'hbs' } },
-            jsonls = {},
-            cssls = {},
-            lua_ls = {
-                Lua = {
-                    workspace = { checkThirdParty = false },
-                    telemetry = { enable = false },
-                    -- NOTE: toggle below to ignore Lua_LS's noisy `missing-fields` warnings
-                    -- diagnostics = { disable = { 'missing-fields' } },
-                },
-            },
-            bashls = {},
-            stylua = {},
-            -- volar = {},
-        }
+            filetypes = { 'typescript', 'javascript', 'javascriptreact', 'typescriptreact', 'vue' },
+        })
+        vim.lsp.config('vue_ls', {
+            on_init = function(client)
+                client.handlers['tsserver/request'] = function(_, result, context)
+                    local clients = vim.lsp.get_clients { bufnr = context.bufnr, name = 'vtsls' }
+                    if #clients == 0 then
+                        vim.notify('Could not find `vtsls` lsp client, `vue_ls` would not work without it.', vim.log.levels.ERROR)
+                        return
+                    end
+                    local ts_client = clients[1]
 
-        if vim.env.OS == 'darwin' then
-            require('lspconfig').sourcekit.setup {}
-        end
+                    local param = unpack(result)
+                    local id, command, payload = unpack(param)
+                    ts_client:exec_cmd({
+                        title = 'vue_request_forward', -- You can give title anything as it's used to represent a command in the UI, `:h Client:exec_cmd`
+                        command = 'typescript.tsserverRequest',
+                        arguments = {
+                            command,
+                            payload,
+                        },
+                    }, { bufnr = context.bufnr }, function(_, r)
+                        local response_data = { { id, r.body } }
+                        ---@diagnostic disable-next-line: param-type-mismatch
+                        client:notify('tsserver/response', response_data)
+                    end)
+                end
+            end,
+        })
+        local servers = {
+            'rust_analyzer',
+            'html',
+            'jsonls',
+            'cssls',
+            'lua_ls',
+            'bashls',
+            'vtsls',
+            'vue_ls',
+        }
 
         if vim.env.JDTLS_ENABLED == 'true' then
             servers.jdtls = {}
         end
 
-        local capabilities = require('blink.cmp').get_lsp_capabilities()
-
         -- Ensure the servers above are installed
-        require('mason-tool-installer').setup { ensure_installed = vim.tbl_keys(servers) }
-        local mason_lspconfig = require 'mason-lspconfig'
-
-        mason_lspconfig.setup {
-            ensure_installed = {},
-            handlers = {
-                function(server_name)
-                    local server = servers[server_name] or {}
-                    server.capabilities = vim.tbl_deep_extend('force', {}, capabilities, server.capabilities or {})
-                    require('lspconfig')[server_name].setup(server)
-                end,
-            },
-        }
+        require('mason').setup()
+        -- stylua should be installed via mason
+        -- require('mason-tool-installer').setup { ensure_installed = servers }
+        for _, serverName in pairs(servers) do
+            vim.lsp.enable(serverName)
+        end
     end,
 }
