@@ -27,6 +27,7 @@ return {
     config = function()
         -- [[ Configure LSP ]]
         --  This function gets run when an LSP connects to a particular buffer.
+        vim.diagnostic.config { virtual_text = true }
         vim.api.nvim_create_autocmd('LspAttach', {
             group = vim.api.nvim_create_augroup('auro-lsp-attach', { clear = true }),
 
@@ -66,14 +67,6 @@ return {
                 nmap('<leader>wl', function()
                     print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
                 end, '[W]orkspace [L]ist Folders')
-
-                local function client_supports_method(client, method, bufnr)
-                    if vim.fn.has 'nvim-0.11' == 1 then
-                        return client:supports_method(method, bufnr)
-                    else
-                        return client.supports_method(method, { bufnr = bufnr })
-                    end
-                end
             end,
         })
 
@@ -88,6 +81,14 @@ return {
         vim.lsp.config('vtsls', {
             settings = {
                 typescript = {
+                    inlayHints = {
+                        parameterNames = { enabled = 'literals' },
+                        parameterTypes = { enabled = true },
+                        variableTypes = { enabled = true },
+                        propertyDeclarationTypes = { enabled = true },
+                        functionLikeReturnTypes = { enabled = true },
+                        enumMemberValues = { enabled = true },
+                    },
                     preferences = {
                         importModuleSpecifier = 'non-relative',
                     },
