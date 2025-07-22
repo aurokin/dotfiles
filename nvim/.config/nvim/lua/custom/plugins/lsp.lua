@@ -4,6 +4,7 @@ return {
     dependencies = {
         -- Automatically install LSPs to stdpath for neovim
         { 'mason-org/mason.nvim', opts = {} },
+        'mason-org/mason-lspconfig.nvim',
         'WhoIsSethDaniel/mason-tool-installer.nvim',
 
         -- Useful status updates for LSP
@@ -142,6 +143,10 @@ return {
             'bashls',
             'vtsls',
             'vue_ls',
+            'stylua',
+        }
+        local masonOnly = {
+            'stylua',
         }
 
         if vim.env.JDTLS_ENABLED == 'true' then
@@ -150,10 +155,13 @@ return {
 
         -- Ensure the servers above are installed
         require('mason').setup()
-        -- stylua should be installed via mason
-        -- require('mason-tool-installer').setup { ensure_installed = servers }
+        require('mason-lspconfig').setup { automatic_enable = false }
+        require('mason-tool-installer').setup { ensure_installed = servers }
+
         for _, serverName in pairs(servers) do
-            vim.lsp.enable(serverName)
+            if not masonOnly[serverName] then
+                vim.lsp.enable(serverName)
+            end
         end
     end,
 }
