@@ -145,9 +145,13 @@ return {
             'vtsls',
             'vue_ls',
             'stylua',
+            'eslint',
+            'eslint_d',
         }
         local masonOnly = {
             'stylua',
+            'eslint',
+            'eslint_d',
         }
 
         if vim.env.JDTLS_ENABLED == 'true' then
