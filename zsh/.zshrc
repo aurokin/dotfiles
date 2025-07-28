@@ -44,6 +44,10 @@ if [[ $OSTYPE == *"darwin"* ]]; then
     export PATH="/Users/$user/.cargo/bin:$PATH"
     export PATH="/Users/$user/.bin:$PATH"
     export PATH="/Users/$user/.local/bin:$PATH"
+
+    if [[ -d "/Library/Java/JavaVirtualMachines/zulu-8.jdk/Contents/Home/bin" ]]; then
+        export PATH="/Library/Java/JavaVirtualMachines/zulu-8.jdk/Contents/Home/bin:$PATH" 
+    fi
 else
     export OS="unix"
     export GLOBAL_NODE_MODULES="/usr/lib/node_modules" 
