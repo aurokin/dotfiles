@@ -57,6 +57,7 @@ else
     export PATH="/home/$user/.cargo/bin:$PATH"
     export PATH="/home/$user/.bin:$PATH"
     export PATH="/home/$user/.local/bin:$PATH"
+    export SUDO_EDITOR="/home/$user/.nix-profile/bin/nvim"
 fi
 
 # Set Aliases
