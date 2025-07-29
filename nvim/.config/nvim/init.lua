@@ -28,12 +28,14 @@ vim.wo.relativenumber = true
 vim.wo.signcolumn = 'number'
 vim.wo.scrolloff = 999
 
-vim.o.tabstop = 4 -- A TAB character looks like 4 spaces
-vim.o.expandtab = true -- Pressing the TAB key will insert spaces instead of a TAB character
-vim.o.softtabstop = 4 -- Number of spaces inserted instead of a TAB character
-vim.o.shiftwidth = 4 -- Number of spaces inserted when indentstring
+-- Tab Key Settings
+vim.opt.autoindent = true
+vim.opt.expandtab = true
+vim.opt.tabstop = 4
+vim.opt.softtabstop = 4
+vim.opt.shiftwidth = 4
 
-vim.o.laststatus = 3
+vim.opt.laststatus = 3
 
 -- [[ Setting options ]]
 vim.o.hlsearch = false
@@ -87,6 +89,3 @@ vim.api.nvim_create_autocmd('TextYankPost', {
     group = highlight_group,
     pattern = '*',
 })
-
--- The line beneath this is called `modeline`. See `:help modeline`
--- vim: ts=2 sts=2 sw=2 et
