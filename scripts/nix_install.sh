@@ -44,3 +44,4 @@ nix-env -iA nixpkgs.watchman
 nix-env -iA nixpkgs.ranger
 nix-env -iA nixpkgs.beautysh
 
+nix-env -iA nixpkgs.gemini-cli

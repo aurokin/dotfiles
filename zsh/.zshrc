@@ -100,8 +100,8 @@ alias fcd="cd \$(find * -type d | fzf)"
 # Load Local Alias
 # If File Exists
 PC_NAME=$(uname -n)
-if [[ $PC_NAME == "barry" ]]; then
-    source /home/auro/.barry.zsh  
+if [[ $PC_NAME == "bront" ]]; then
+    source /home/auro/.bront.zsh  
 elif [[ $PC_NAME == "L126228" ]]; then
     source /Users/hsadler/.L126228.zsh
 fi
