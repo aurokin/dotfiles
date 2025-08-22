@@ -5,6 +5,6 @@
 # rm nodesource_setup.sh
 
 sudo apt-get update -y
-sudo apt-get install -y build-essential openjdk-21-jdk python3 nodejs
+sudo apt-get install -y build-essential openjdk-21-jdk python3 nodejs ruby-full lua5.4 liblua5.4-dev golang
 
 chsh auro -s /bin/zsh
