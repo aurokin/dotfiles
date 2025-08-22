@@ -5,7 +5,6 @@
 # rm nodesource_setup.sh
 
 sudo apt-get update -y
-sudo apt-get install -y build-essential 
-# sudo apt-get install -y zsh nodejs build-essential wget ripgrep tree stow python3 openjdk-17-jdk openjdk-17-jre
+sudo apt-get install -y build-essential openjdk-21-jdk python3 nodejs
 
 chsh auro -s /bin/zsh

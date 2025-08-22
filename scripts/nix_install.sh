@@ -1,14 +1,5 @@
 #!/bin/bash
 
-nix-env -iA nixpkgs.glibcLocales
-nix-env -iA nixpkgs.gccgo13
-nix-env -iA nixpkgs.nodejs_20
-nix-env -iA nixpkgs.python3
-nix-env -iA nixpkgs.ruby
-nix-env -iA nixpkgs.zulu17
-nix-env -iA nixpkgs.lua
-nix-env -iA nixpkgs.sass
-
 nix-env -iA nixpkgs.zsh
 nix-env -iA nixpkgs.pure-prompt
 
@@ -35,13 +26,7 @@ nix-env -iA nixpkgs.termscp
 nix-env -iA nixpkgs.lazydocker
 nix-env -iA nixpkgs.lazygit
 
-nix-env -iA nixpkgs.yarn
-nix-env -iA nixpkgs.typescript
-nix-env -iA nixpkgs.rubyPackages_3_3.xcodeproj
 nix-env -iA nixpkgs.xcbeautify
 nix-env -iA nixpkgs.prettierd
-nix-env -iA nixpkgs.watchman
 nix-env -iA nixpkgs.ranger
 nix-env -iA nixpkgs.beautysh
-
-nix-env -iA nixpkgs.gemini-cli
