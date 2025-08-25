@@ -6,11 +6,15 @@
 map Q gq
 
 " Config
-" Set case insensitive
 let mapleader = ","
+set ignorecase
+set smartcase
 set incsearch
+set showmode
+set showcmd
+set visualbell
 set numberwidth=5
-set relativenumber=true
+set relativenumber
 set scrolloff=999
 set autoindent=true
 set expandtab=true
@@ -23,8 +27,6 @@ set number=true
 set mouse='a'
 set breakindent=true
 set undofile=true
-set ignorecase=true
-set smartcase=true
 set signcolumn='yes'
 set updatetime=250
 set timeoutlen=300
