@@ -13,6 +13,8 @@ set incsearch
 set showmode
 set showcmd
 set visualbell
+set nerdtree
+set notimeout
 set numberwidth=5
 set relativenumber
 set scrolloff=999
@@ -40,16 +42,22 @@ Plug 'tpope/vim-commentary'
 " :actionlist
 map <C-v> <Action>(SplitVertically)
 map <C-s> <Action>(SplitHorizontally)
-" Split Chooser needs to be fixed
-" Need to be able to change between tabs
-map <C-h> <Action>(SplitChooser.SplitLeft)
-map <C-j> <Action>(SplitChooser.SplitDown)
-map <C-k> <Action>(SplitChooser.SplitTop)
-map <C-l> <Action>(SplitChooser.SplitRight)
+nnoremap <C-h> <C-w>h
+nnoremap <C-j> <C-w>j
+nnoremap <C-k> <C-w>k
+nnoremap <C-l> <C-w>l
+nnoremap <C-1> :tabprev<CR>
+nnoremap <C-2> :tabnext<CR>
+
+" LSP
 map <leader>fd <Action>(ReformatCode)
+
+" Code Navigation
+map <leader>rn <Action>(RenameElement)
 map <leader>ff <Action>(SearchEverywhere)
 map <leader>fw <Action>(FindInPath)
 map <leader>gf <Action>(SearchEverywhere)
 map <leader>gw <Action>(FindInPath)
 map <leader>gr <Action>(FindUsages)
 map <leader>gd <Action>(GotoDeclaration)
+map <leader>fb :NERDTREEToggle<CR>
