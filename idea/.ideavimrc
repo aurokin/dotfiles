@@ -60,4 +60,5 @@ map <leader>gf <Action>(SearchEverywhere)
 map <leader>gw <Action>(FindInPath)
 map <leader>gr <Action>(FindUsages)
 map <leader>gd <Action>(GotoDeclaration)
-map <leader>fb :NERDTreeToggle<CR>
+map <leader>fb :NERDTree<CR>
+map <leader>ft :NERDTreeToggle<CR>
