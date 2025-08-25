@@ -37,14 +37,16 @@ Plug 'tpope/vim-commentary'
 " :actionlist
 map <C-v> <Action>(SplitVertically)
 map <C-s> <Action>(SplitHorizontally)
+" Split Chooser needs to be fixed
+" Need to be able to change between tabs
 map <C-h> <Action>(SplitChooser.SplitLeft)
 map <C-j> <Action>(SplitChooser.SplitDown)
 map <C-k> <Action>(SplitChooser.SplitTop)
 map <C-l> <Action>(SplitChooser.SplitRight)
 map <leader>fd <Action>(ReformatCode)
-map <leader>ff <Action>(Find)
-map <leader>fw <Action>(Find)
-map <leader>gf <Action>(Find)
-map <leader>gw <Action>(Find)
+map <leader>ff <Action>(SearchEverywhere)
+map <leader>fw <Action>(FindInPath)
+map <leader>gf <Action>(SearchEverywhere)
+map <leader>gw <Action>(FindInPath)
 map <leader>gr <Action>(FindUsages)
 map <leader>gd <Action>(GotoDeclaration)
