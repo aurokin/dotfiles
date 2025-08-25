@@ -6,6 +6,7 @@
 map Q gq
 
 " Config
+" Set case insensitive
 let mapleader = ","
 set incsearch
 set numberwidth=5
