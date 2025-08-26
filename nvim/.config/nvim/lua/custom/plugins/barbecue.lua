@@ -1,19 +1,14 @@
 return {
-    'utilyre/barbecue.nvim',
-    name = 'barbecue',
-    version = '*',
+    'Bekaboo/dropbar.nvim',
     dependencies = {
-        'SmiteshP/nvim-navic',
-        'nvim-tree/nvim-web-devicons', -- optional dependency
+        {
+            'nvim-telescope/telescope-fzf-native.nvim',
+            build = 'make',
+            cond = function()
+                return vim.fn.executable 'make' == 1
+            end,
+        },
+        'nvim-tree/nvim-web-devicons',
     },
-    opts = {
-        -- configurations go here
-    },
-    config = function()
-        vim.g.navic_silence = true
-        require('barbecue').setup {
-            theme = 'tokyonight',
-            -- attach_navic = false,
-        }
-    end,
+    opts = {},
 }

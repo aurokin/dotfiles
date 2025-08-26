@@ -21,9 +21,8 @@ require('lazy').setup({
 }, {})
 
 -- [[ Auro Setting options ]]
-vim.wo.numberwidth = 5
+vim.wo.numberwidth = 1
 vim.wo.relativenumber = true
-vim.wo.signcolumn = 'number'
 vim.wo.scrolloff = 999
 
 -- Tab Key Settings
