@@ -20,8 +20,6 @@ require('lazy').setup({
     { import = 'custom.plugins' },
 }, {})
 
-local twigsmux = require 'twigsmux'
-
 -- [[ Auro Setting options ]]
 vim.wo.numberwidth = 5
 vim.wo.relativenumber = true
@@ -73,9 +71,9 @@ vim.keymap.set({ 'n', 'v' }, '<leader>yy', function()
     local clip_contents = vim.fn.getreg '+'
     vim.fn.setreg('"', clip_contents)
 end, { desc = 'Copy from Clipboard to Register' })
-vim.keymap.set({ 'n', 'v', 'i' }, '<C-t>', function()
-    twigsmux.switch()
-end, { desc = 'Twigsmux' })
+vim.keymap.set('n', '<leader>fb', function()
+    vim.cmd 'Ex'
+end, { desc = '[F]ile Browser (Netrw)' })
 -- [[ Basic Keymaps ]]
 vim.keymap.set({ 'n', 'v' }, '<Space>', '<Nop>', { silent = true })
 vim.keymap.set('n', 'k', "v:count == 0 ? 'gk' : 'k'", { expr = true, silent = true })

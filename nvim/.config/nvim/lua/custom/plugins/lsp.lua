@@ -154,10 +154,6 @@ return {
             'eslint_d',
         }
 
-        if vim.env.JDTLS_ENABLED == 'true' then
-            servers.jdtls = {}
-        end
-
         -- Ensure the servers above are installed
         require('mason').setup()
         require('mason-lspconfig').setup { automatic_enable = false }
