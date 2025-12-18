@@ -102,8 +102,8 @@ alias fcd="cd \$(find * -type d | fzf)"
 PC_NAME=$(uname -n)
 if [[ $PC_NAME == "bront" ]]; then
     source /home/auro/.bront.zsh  
-elif [[ $PC_NAME == "L126228" ]]; then
-    source /Users/hsadler/.L126228.zsh
+elif [[ $PC_NAME == "L128392" ]]; then
+    source /Users/hsadler/.L128392.zsh
 fi
 
 # Zoxide
