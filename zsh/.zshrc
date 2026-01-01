@@ -104,6 +104,8 @@ if [[ $PC_NAME == "bront" ]]; then
     source /home/auro/.bront.zsh  
 elif [[ $PC_NAME == "L128392" ]]; then
     source /Users/hsadler/.L128392.zsh
+elif [[ $PC_NAME == "luma" ]]; then
+    source $HOME/.luma.zsh
 fi
 
 # Zoxide
