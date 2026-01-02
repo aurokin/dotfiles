@@ -101,7 +101,7 @@ alias fcd="cd \$(find * -type d | fzf)"
 # If File Exists
 PC_NAME=$(uname -n)
 if [[ $PC_NAME == "bront" ]]; then
-    source /home/auro/.bront.zsh  
+    source "$HOME/.bront.zsh"
 elif [[ $PC_NAME == "L128392" ]]; then
     source /Users/hsadler/.L128392.zsh
 fi
