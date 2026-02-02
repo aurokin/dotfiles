@@ -80,6 +80,7 @@ alias lg="lazygit"
 alias rr="rm -rf"
 alias twm="source ~/.zsh_scripts/twigsmux.sh"
 alias zshrd="source ~/.zshrc"
+alias pscripts="$HOME/.scripts/list-package-json-scripts.sh"
 
 # Bat Tokyo Night
 export BAT_THEME="tokyonight_night"
