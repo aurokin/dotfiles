@@ -17,15 +17,18 @@ sample_lines="${OPENCODE_SAMPLE_LINES:-120}"
 sample_regex="${OPENCODE_SAMPLE_REGEX:-esc interrupt}"
 json_output=0
 debug=0
+deep=0
 
 usage() {
   cat <<'USAGE'
-Usage: find-opencode-tmux.sh [--json] [--debug]
+Usage: find-opencode-tmux.sh [--json] [--debug] [--deep]
 
 Environment:
   OPENCODE_PATTERN       Pattern to identify opencode panes (default: "opencode")
   OPENCODE_SAMPLE_LINES  Lines to sample from pane (default: 120)
   OPENCODE_SAMPLE_REGEX  Regex to detect "building" state (default: "esc interrupt")
+Flags:
+  --deep  Run slower process scans (child/tty) for better detection
 USAGE
 }
 
@@ -33,6 +36,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --json) json_output=1 ;;
     --debug) debug=1 ;;
+    --deep) deep=1 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown arg: $1" >&2; usage; exit 1 ;;
   esac
@@ -72,13 +76,18 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
       matches+=("current_command: $pane_cmd")
     fi
 
-    proc_name="$(ps -p "$pane_pid" -o comm= 2>/dev/null || true)"
+    proc_line="$(ps -p "$pane_pid" -o comm= -o command= 2>/dev/null || true)"
+    if [[ -n "$proc_line" ]]; then
+      proc_name="${proc_line%% *}"
+      proc_cmdline="${proc_line#* }"
+    else
+      proc_name=""
+      proc_cmdline=""
+    fi
     if [[ "$proc_name" == *"$pattern"* ]]; then
       matches+=("pane_process: $proc_name")
     fi
-
-    proc_cmdline="$(ps -p "$pane_pid" -o command= 2>/dev/null || true)"
-    if [[ "$proc_cmdline" == *"$pattern"* ]]; then
+    if [[ -n "$proc_cmdline" ]] && [[ "$proc_cmdline" == *"$pattern"* ]]; then
       matches+=("pane_cmdline: $proc_cmdline")
     fi
 
@@ -86,31 +95,33 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
       matches+=("pane_title: $pane_title")
     fi
 
-    if [[ "$pane_id" == %* ]]; then
+    if ((deep == 1)); then
+      while IFS= read -r line; do
+        [[ -n "$line" ]] && child_processes+=("$line")
+      done < <(pgrep -a -f -P "$pane_pid" "$pattern" 2>/dev/null || true)
+
+      tty_short="${pane_tty#/dev/}"
+      if [[ -n "$tty_short" ]]; then
+        while IFS= read -r line; do
+          [[ -n "$line" ]] && tty_processes+=("$line")
+        done < <(pgrep -a -f -t "$tty_short" "$pattern" 2>/dev/null || true)
+      fi
+
+      for line in "${child_processes[@]}"; do
+        matches+=("child_process: $line")
+      done
+      for line in "${tty_processes[@]}"; do
+        matches+=("tty_process: $line")
+      done
+    fi
+
+    if ((${#matches[@]} > 0)) && [[ "$pane_id" == %* ]]; then
       pane_sample="$(tmux capture-pane -p -t "$pane_id" -S "-$sample_lines" 2>/dev/null || true)"
       if [[ -n "$pane_sample" ]] && echo "$pane_sample" | rg -i -n -m 1 -e "$sample_regex" >/dev/null 2>&1; then
         pane_sample_matched=1
         matches+=("pane_sample: matched /$sample_regex/ in last ${sample_lines} lines")
       fi
     fi
-
-    while IFS= read -r line; do
-      [[ -n "$line" ]] && child_processes+=("$line")
-    done < <(pgrep -a -f -P "$pane_pid" "$pattern" 2>/dev/null || true)
-
-    tty_short="${pane_tty#/dev/}"
-    if [[ -n "$tty_short" ]]; then
-      while IFS= read -r line; do
-        [[ -n "$line" ]] && tty_processes+=("$line")
-      done < <(pgrep -a -f -t "$tty_short" "$pattern" 2>/dev/null || true)
-    fi
-
-    for line in "${child_processes[@]}"; do
-      matches+=("child_process: $line")
-    done
-    for line in "${tty_processes[@]}"; do
-      matches+=("tty_process: $line")
-    done
 
   if ((${#matches[@]} > 0)); then
     found=1
