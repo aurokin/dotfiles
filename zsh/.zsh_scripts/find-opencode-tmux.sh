@@ -15,6 +15,9 @@ fi
 pattern="${OPENCODE_PATTERN:-opencode}"
 sample_lines="${OPENCODE_SAMPLE_LINES:-120}"
 sample_regex="${OPENCODE_SAMPLE_REGEX:-esc interrupt}"
+cmd_allowlist="${OPENCODE_CMD_ALLOWLIST:-opencode}"
+script_basename="$(basename "$0")"
+script_path="$0"
 json_output=0
 debug=0
 deep=0
@@ -74,6 +77,35 @@ json_array() {
   printf '%s' "$out"
 }
 
+has_allowed_cmd() {
+  local cmd="$1"
+  [[ -z "$cmd" ]] && return 1
+  local item
+  IFS=',' read -r -a allowlist_items <<< "$cmd_allowlist"
+  for item in "${allowlist_items[@]}"; do
+    [[ -z "$item" ]] && continue
+    if [[ "$cmd" == "$item" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+line_has_allowed_cmd() {
+  local line="$1"
+  [[ -z "$line" ]] && return 1
+  local cmd_token="${line#* }"
+  cmd_token="${cmd_token%% *}"
+  local cmd_base="${cmd_token##*/}"
+  has_allowed_cmd "$cmd_token" || has_allowed_cmd "$cmd_base"
+}
+
+is_self_line() {
+  local line="$1"
+  [[ -z "$line" ]] && return 1
+  [[ "$line" == *"$script_basename"* || "$line" == *"$script_path"* ]]
+}
+
 rg_available=0
 if command -v rg >/dev/null 2>&1; then
   rg_available=1
@@ -115,28 +147,26 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
   tty_processes=()
   pane_sample_matched=0
 
-    if [[ "$pane_cmd" == *"$pattern"* ]]; then
+    if has_allowed_cmd "$pane_cmd"; then
       matches+=("current_command: $pane_cmd")
     fi
 
     proc_name="${pid_comm[$pane_pid]-}"
     proc_cmdline="${pid_cmdline[$pane_pid]-}"
-    if [[ "$proc_name" == *"$pattern"* ]]; then
+    if has_allowed_cmd "$proc_name"; then
       matches+=("pane_process: $proc_name")
     fi
     if [[ -n "$proc_cmdline" ]] && [[ "$proc_cmdline" == *"$pattern"* ]]; then
       matches+=("pane_cmdline: $proc_cmdline")
     fi
 
-    if [[ "$pane_title" == *"$pattern"* ]]; then
-      matches+=("pane_title: $pane_title")
-    fi
-
     if ((deep == 1)); then
       child_blob="${ppid_children[$pane_pid]-}"
       if [[ -n "$child_blob" ]]; then
         while IFS= read -r line; do
-          [[ -n "$line" && "$line" == *"$pattern"* ]] && child_processes+=("$line")
+          if line_has_allowed_cmd "$line" && ! is_self_line "$line"; then
+            child_processes+=("$line")
+          fi
         done <<< "$child_blob"
       fi
 
@@ -145,7 +175,9 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
         tty_blob="${tty_processes[$tty_short]-}"
         if [[ -n "$tty_blob" ]]; then
           while IFS= read -r line; do
-            [[ -n "$line" && "$line" == *"$pattern"* ]] && tty_processes+=("$line")
+            if line_has_allowed_cmd "$line" && ! is_self_line "$line"; then
+              tty_processes+=("$line")
+            fi
           done <<< "$tty_blob"
         fi
       fi
