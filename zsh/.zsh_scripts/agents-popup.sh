@@ -3,6 +3,7 @@
 while :; do
   ~/.zsh_scripts/find-opencode-tmux.sh
   printf '\n'
+  printf 'r to refresh, any key to close\n'
   IFS= read -r -s -n 1 key || exit 0
   if [ "$key" = r ]; then
     clear
