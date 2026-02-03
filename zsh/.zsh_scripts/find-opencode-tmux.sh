@@ -55,6 +55,14 @@ json_escape() {
   printf '%s' "$s"
 }
 
+json_field() {
+  printf '"%s":"%s",' "$1" "$(json_escape "$2")"
+}
+
+json_field_raw() {
+  printf '"%s":%s,' "$1" "$2"
+}
+
 json_array() {
   local out="["
   local first=1
@@ -66,6 +74,41 @@ json_array() {
   printf '%s' "$out"
 }
 
+rg_available=0
+if command -v rg >/dev/null 2>&1; then
+  rg_available=1
+fi
+
+declare -A pid_comm
+declare -A pid_cmdline
+declare -A ppid_children
+declare -A tty_processes
+
+while read -r pid ppid tty comm cmdline; do
+  [[ -z "$pid" ]] && continue
+
+  pid_comm["$pid"]="$comm"
+  pid_cmdline["$pid"]="$cmdline"
+
+  proc_line="$pid ${cmdline:-$comm}"
+
+  if [[ -n "$ppid" ]]; then
+    if [[ -n "${ppid_children[$ppid]+x}" ]]; then
+      ppid_children["$ppid"]+=$'\n'"$proc_line"
+    else
+      ppid_children["$ppid"]="$proc_line"
+    fi
+  fi
+
+  if [[ -n "$tty" ]]; then
+    if [[ -n "${tty_processes[$tty]+x}" ]]; then
+      tty_processes["$tty"]+=$'\n'"$proc_line"
+    else
+      tty_processes["$tty"]="$proc_line"
+    fi
+  fi
+done < <(ps -axo pid=,ppid=,tty=,comm=,command= 2>/dev/null || true)
+
 while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_title pane_tty; do
   matches=()
   child_processes=()
@@ -76,14 +119,8 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
       matches+=("current_command: $pane_cmd")
     fi
 
-    proc_line="$(ps -p "$pane_pid" -o comm= -o command= 2>/dev/null || true)"
-    if [[ -n "$proc_line" ]]; then
-      proc_name="${proc_line%% *}"
-      proc_cmdline="${proc_line#* }"
-    else
-      proc_name=""
-      proc_cmdline=""
-    fi
+    proc_name="${pid_comm[$pane_pid]-}"
+    proc_cmdline="${pid_cmdline[$pane_pid]-}"
     if [[ "$proc_name" == *"$pattern"* ]]; then
       matches+=("pane_process: $proc_name")
     fi
@@ -96,15 +133,21 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
     fi
 
     if ((deep == 1)); then
-      while IFS= read -r line; do
-        [[ -n "$line" ]] && child_processes+=("$line")
-      done < <(pgrep -a -f -P "$pane_pid" "$pattern" 2>/dev/null || true)
+      child_blob="${ppid_children[$pane_pid]-}"
+      if [[ -n "$child_blob" ]]; then
+        while IFS= read -r line; do
+          [[ -n "$line" && "$line" == *"$pattern"* ]] && child_processes+=("$line")
+        done <<< "$child_blob"
+      fi
 
       tty_short="${pane_tty#/dev/}"
       if [[ -n "$tty_short" ]]; then
-        while IFS= read -r line; do
-          [[ -n "$line" ]] && tty_processes+=("$line")
-        done < <(pgrep -a -f -t "$tty_short" "$pattern" 2>/dev/null || true)
+        tty_blob="${tty_processes[$tty_short]-}"
+        if [[ -n "$tty_blob" ]]; then
+          while IFS= read -r line; do
+            [[ -n "$line" && "$line" == *"$pattern"* ]] && tty_processes+=("$line")
+          done <<< "$tty_blob"
+        fi
       fi
 
       for line in "${child_processes[@]}"; do
@@ -117,9 +160,18 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
 
     if ((${#matches[@]} > 0)) && [[ "$pane_id" == %* ]]; then
       pane_sample="$(tmux capture-pane -p -t "$pane_id" -S "-$sample_lines" 2>/dev/null || true)"
-      if [[ -n "$pane_sample" ]] && echo "$pane_sample" | rg -i -n -m 1 -e "$sample_regex" >/dev/null 2>&1; then
-        pane_sample_matched=1
-        matches+=("pane_sample: matched /$sample_regex/ in last ${sample_lines} lines")
+      if [[ -n "$pane_sample" ]]; then
+        if ((rg_available)); then
+          if echo "$pane_sample" | rg -i -n -m 1 -e "$sample_regex" >/dev/null 2>&1; then
+            pane_sample_matched=1
+            matches+=("pane_sample: matched /$sample_regex/ in last ${sample_lines} lines")
+          fi
+        else
+          if echo "$pane_sample" | grep -i -m 1 -E "$sample_regex" >/dev/null 2>&1; then
+            pane_sample_matched=1
+            matches+=("pane_sample: matched /$sample_regex/ in last ${sample_lines} lines")
+          fi
+        fi
       fi
     fi
 
@@ -147,23 +199,23 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
         printf ','
       fi
       printf '{'
-      printf '"session":"%s",' "$(json_escape "$session")"
-      printf '"window_index":%s,' "$(json_escape "$win_idx")"
-      printf '"pane_index":%s,' "$(json_escape "$pane_idx")"
-      printf '"pane_id":"%s",' "$(json_escape "$pane_id")"
-      printf '"pane_pid":%s,' "$(json_escape "$pane_pid")"
-      printf '"pane_tty":"%s",' "$(json_escape "$pane_tty")"
-      printf '"pane_title":"%s",' "$(json_escape "$pane_title")"
-      printf '"pane_title_display":"%s",' "$(json_escape "$display_title")"
-      printf '"pane_current_command":"%s",' "$(json_escape "$pane_cmd")"
-      printf '"pane_process":"%s",' "$(json_escape "$proc_name")"
-      printf '"pane_cmdline":"%s",' "$(json_escape "$proc_cmdline")"
-      printf '"pattern":"%s",' "$(json_escape "$pattern")"
-      printf '"sample_lines":%s,' "$(json_escape "$sample_lines")"
-      printf '"sample_regex":"%s",' "$(json_escape "$sample_regex")"
-      printf '"building":%s,' "$building_bool"
-      printf '"matches":%s,' "$(json_array "${matches[@]}")"
-      printf '"child_processes":%s,' "$(json_array "${child_processes[@]}")"
+      json_field "session" "$session"
+      json_field_raw "window_index" "$(json_escape "$win_idx")"
+      json_field_raw "pane_index" "$(json_escape "$pane_idx")"
+      json_field "pane_id" "$pane_id"
+      json_field_raw "pane_pid" "$(json_escape "$pane_pid")"
+      json_field "pane_tty" "$pane_tty"
+      json_field "pane_title" "$pane_title"
+      json_field "pane_title_display" "$display_title"
+      json_field "pane_current_command" "$pane_cmd"
+      json_field "pane_process" "$proc_name"
+      json_field "pane_cmdline" "$proc_cmdline"
+      json_field "pattern" "$pattern"
+      json_field_raw "sample_lines" "$(json_escape "$sample_lines")"
+      json_field "sample_regex" "$sample_regex"
+      json_field_raw "building" "$building_bool"
+      json_field_raw "matches" "$(json_array "${matches[@]}")"
+      json_field_raw "child_processes" "$(json_array "${child_processes[@]}")"
       printf '"tty_processes":%s' "$(json_array "${tty_processes[@]}")"
       printf '}'
     else
