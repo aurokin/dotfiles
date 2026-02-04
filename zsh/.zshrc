@@ -2,11 +2,6 @@
 # Requires Installing
 # - Pure (https://github.com/sindresorhus/pure)
 
-# Pure
-fpath+=($HOME/.zsh/pure)
-autoload -U promptinit; promptinit
-prompt pure
-
 # Terminal
 export TERM=xterm-256color
 
@@ -42,6 +37,13 @@ if [[ -x "$brew_bin" ]]; then
 elif command -v brew >/dev/null 2>&1; then
     eval "$(brew shellenv)"
 fi
+
+# Pure
+if [[ -n "$HOMEBREW_PREFIX" ]]; then
+    fpath+=("$HOMEBREW_PREFIX/share/zsh/site-functions")
+fi
+autoload -U promptinit; promptinit
+prompt pure
 
 export PATH="$HOME/.bin:$HOME/.local/bin:$PATH"
 
@@ -114,4 +116,3 @@ fi
 
 # Zoxide
 eval "$(zoxide init zsh)"
-
