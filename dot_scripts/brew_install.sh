@@ -8,6 +8,7 @@ brew install swiftformat
 brew install xcbeautify
 
 brew install jq
+brew install libyaml
 
 brew install zsh
 brew install pure
