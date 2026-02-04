@@ -20,8 +20,8 @@ export GIT_EDITOR=nvim
 # Tree
 export LS_COLORS=true
 
-# Nix
-export NIXPKGS_ALLOW_UNFREE=1
+# Claude
+export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 
 # LANG
 export JDTLS_ENABLED=false;
@@ -35,12 +35,11 @@ if [[ $OSTYPE == *"darwin"* ]]; then
     # OSX
     export OS="darwin";
     export GLOBAL_NODE_MODULES="/opt/homebrew/lib/node_modules"
-    export PATH="/Users/$user/.nix-profile/bin:$PATH"
-    export PATH="/opt/homebrew/bin:$PATH"
+    if [[ -x "/opt/homebrew/bin/brew" ]]; then
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+    fi
     export PATH="/opt/homebrew/opt/ruby/bin:$PATH"
     export PATH="/opt/homebrew/lib/ruby/gems/3.3.0/bin:$PATH"
-    export PATH="/opt/homebrew/opt/openjdk@17/bin:$PATH"
-    export PATH="/nix/var/nix/profiles/default/bin:$PATH"
     export PATH="/Users/$user/.cargo/bin:$PATH"
     export PATH="/Users/$user/.bin:$PATH"
     export PATH="/Users/$user/.local/bin:$PATH"
@@ -52,13 +51,16 @@ else
     export OS="unix"
     export GLOBAL_NODE_MODULES="/usr/lib/node_modules" 
     export PATH="/opt/swift/usr/bin:$PATH"
-    export PATH="/nix/var/nix/profiles/default/bin:$PATH"
-    export PATH="/home/$user/.nix-profile/bin:$PATH"
+    if [[ -x "/home/linuxbrew/.linuxbrew/bin/brew" ]]; then
+        eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+    elif command -v brew >/dev/null 2>&1; then
+        eval "$(brew shellenv)"
+    fi
     export PATH="/home/$user/.cargo/bin:$PATH"
     export PATH="/home/$user/.bin:$PATH"
     export PATH="/home/$user/.local/bin:$PATH"
     export PATH="$HOME/.npm-global/bin:$PATH"
-    export SUDO_EDITOR="/home/$user/.nix-profile/bin/nvim"
+    export SUDO_EDITOR="nvim"
 fi
 
 # Set Aliases
@@ -78,10 +80,10 @@ alias jdtls="export JDTLS_ENABLED=true"
 alias gcb="git checkout \$(git branch | fzf)"
 alias lg="lazygit"
 alias rr="rm -rf"
-alias twm="source ~/.zsh_scripts/twigsmux.sh"
-alias agents="$HOME/.zsh_scripts/find-opencode-tmux.sh"
+alias twm="source ~/.zshrc.d/scripts/twigsmux.sh"
+alias agents="$HOME/.zshrc.d/scripts/find-opencode-tmux.sh"
 alias zshrd="source ~/.zshrc"
-alias pscripts="$HOME/.zsh_scripts/list-package-json-scripts.sh"
+alias pscripts="$HOME/.zshrc.d/scripts/list-package-json-scripts.sh"
 
 # Bat Tokyo Night
 export BAT_THEME="tokyonight_night"
@@ -100,15 +102,17 @@ alias fwd="cd \$(find /home /pluto /MURF /Users ~ ~/downloads ~/workspace ~/Down
 alias fcd="cd \$(find * -type d | fzf)"
 # alias frd="cd / && cd \$(find * -typed | fzf)"
 
-# Load Local Alias
-# If File Exists
+# Load Host Config
 PC_NAME=$(uname -n)
-if [[ $PC_NAME == "bront" ]]; then
-    source "$HOME/.bront.zsh"
-elif [[ $PC_NAME == "L128392" ]]; then
-    source /Users/hsadler/.L128392.zsh
-elif [[ $PC_NAME == "luma" ]]; then
-    source $HOME/.luma.zsh
+HOST_FILE="$HOME/.zshrc.d/hosts/$PC_NAME.zsh"
+KEYS_FILE="$HOME/.zshrc.d/keys.zsh"
+
+if [[ -f "$HOST_FILE" ]]; then
+    source "$HOST_FILE"
+fi
+
+if [[ -f "$KEYS_FILE" ]]; then
+    source "$KEYS_FILE"
 fi
 
 # Zoxide

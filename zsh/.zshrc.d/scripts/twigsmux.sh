@@ -2,9 +2,9 @@
 
 # This script expects you to be called in a tmux session called twigsmux, other than initial entry into tmux.
 # I recommend setting these keybinds in your .tmux.conf
-# bind-key t new-session -A -s twigsmux 'source ~/.zsh_scripts/twigsmux.sh d' \; 
-# bind-key k new-session -A -s twigsmux 'source ~/.zsh_scripts/twigsmux.sh k' \;
-# bind-key L new-session -A -s twigsmux 'source ~/.zsh_scripts/twigsmux.sh l' \;
+# bind-key t new-session -A -s twigsmux 'source ~/.zshrc.d/scripts/twigsmux.sh d' \; 
+# bind-key k new-session -A -s twigsmux 'source ~/.zshrc.d/scripts/twigsmux.sh k' \;
+# bind-key L new-session -A -s twigsmux 'source ~/.zshrc.d/scripts/twigsmux.sh l' \;
 # bind-key u attach-session -c "#{pane_current_path}"
 
 # If you are not inside tmux, calling the script will attach you to your tmux server, or create a server with a session specified below
