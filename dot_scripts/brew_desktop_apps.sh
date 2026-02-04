@@ -11,4 +11,4 @@ brew install --cask steam
 brew install --cask retroarch
 brew install --cask the-unarchiver
 brew install --cask caffeine
-brew install docker
+brew install --cask docker-desktop
