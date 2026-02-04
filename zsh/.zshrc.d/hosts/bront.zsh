@@ -1,1 +1,2 @@
-# bun completions and PATH handled by mise
+# OpenClaw Completion
+source <(openclaw completion --shell zsh)

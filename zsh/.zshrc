@@ -114,3 +114,4 @@ fi
 
 # Zoxide
 eval "$(zoxide init zsh)"
+
