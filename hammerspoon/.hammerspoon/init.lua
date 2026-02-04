@@ -4,16 +4,17 @@ local MOVE_SWITCH_DELAY_SEC = 0.05
 local MOVE_DROP_DELAY_SEC = 0.2
 local MOVE_MAXIMIZE_DELAY_SEC = 0.02
 local MOVE_RETURN_TO_ORIGINAL = false
-local SPACE_KEYS = { "1", "2", "3", "4", "5", "6", "7", "8", "9" }
+
 local FOCUS_MODIFIERS = { alt = true }
 local MOVE_MODIFIERS = { alt = true, shift = true }
 local MOVE_SWITCH_MODIFIERS = { alt = true }
 local MODIFIER_KEYS = { "alt", "cmd", "ctrl", "shift", "fn" }
+
 local function modifiersToList(modifiers)
   local list = {}
   for _, key in ipairs(MODIFIER_KEYS) do
     if modifiers[key] then
-      table.insert(list, key)
+      list[#list + 1] = key
     end
   end
   return list
@@ -21,19 +22,15 @@ end
 
 local MOVE_SWITCH_KEYS = modifiersToList(MOVE_SWITCH_MODIFIERS)
 
-local function focusWindowForSpace(space)
-  local windowIds = hs.spaces.windowsForSpace(space)
-  if windowIds then
-    for _, windowId in ipairs(windowIds) do
-      local win = hs.window.get(windowId)
-      if win and win:isStandard() then
-        win:focus()
-        return true
-      end
+local function modifiersMatch(flags, modifiers)
+  for _, key in ipairs(MODIFIER_KEYS) do
+    local want = modifiers[key] or false
+    local have = flags[key] or false
+    if have ~= want then
+      return false
     end
   end
-
-  return false
+  return true
 end
 
 local function sortedScreens()
@@ -49,43 +46,41 @@ local function sortedScreens()
   return screens
 end
 
-local function orderedSpaces()
+local function spaceInfo()
   local spacesByScreen = hs.spaces.allSpaces()
   local ordered = {}
+  local indexBy = {}
+  local displayBy = {}
+
   for _, screen in ipairs(sortedScreens()) do
     local uuid = screen:getUUID()
     local spaces = spacesByScreen[uuid]
     if spaces then
       for _, space in ipairs(spaces) do
         if hs.spaces.spaceType(space) == "user" then
-          table.insert(ordered, space)
+          ordered[#ordered + 1] = space
+          indexBy[space] = #ordered
+          displayBy[space] = uuid
         end
       end
     end
   end
-  return ordered
+
+  return ordered, indexBy, displayBy
 end
 
-local function spaceDisplayForId(spaceId)
-  local spacesByScreen = hs.spaces.allSpaces()
-  for uuid, spaces in pairs(spacesByScreen) do
-    for _, space in ipairs(spaces) do
-      if space == spaceId then
-        return uuid
-      end
-    end
+local function spaceForIndex(index)
+  local ordered, _, displayBy = spaceInfo()
+  local space = ordered[index]
+  if not space then
+    return nil
   end
-  return nil
+  return space, displayBy[space]
 end
 
-local function spaceIndex(spaceId)
-  local spaces = orderedSpaces()
-  for i, space in ipairs(spaces) do
-    if space == spaceId then
-      return i
-    end
-  end
-  return nil
+local function indexForSpace(spaceId)
+  local _, indexBy = spaceInfo()
+  return indexBy[spaceId]
 end
 
 local function switchToSpaceIndex(index)
@@ -93,6 +88,23 @@ local function switchToSpaceIndex(index)
   local keyUp = hs.eventtap.event.newKeyEvent(MOVE_SWITCH_KEYS, tostring(index), false)
   keyDown:post()
   keyUp:post()
+end
+
+local function focusWindowForSpace(space)
+  local windowIds = hs.spaces.windowsForSpace(space)
+  if not windowIds then
+    return false
+  end
+
+  for _, windowId in ipairs(windowIds) do
+    local win = hs.window.get(windowId)
+    if win and win:isStandard() then
+      win:focus()
+      return true
+    end
+  end
+
+  return false
 end
 
 local function maximizeWindowById(winId, winPid, winTitle)
@@ -150,9 +162,8 @@ local function startWindowDrag(win, targetIndex)
     return nil
   end
 
-  local spaces = orderedSpaces()
-  local space = spaces[targetIndex]
-  if not space then
+  local targetSpace = spaceForIndex(targetIndex)
+  if not targetSpace then
     return nil
   end
 
@@ -161,6 +172,15 @@ local function startWindowDrag(win, targetIndex)
     return nil
   end
 
+  local winId = win:id()
+  if not winId then
+    return nil
+  end
+
+  local app = win:application()
+  local winPid = app and app:pid() or nil
+  local winTitle = win:title()
+
   local dragPoint2 = {
     x = dragPoint.x + 10,
     y = dragPoint.y + 5,
@@ -168,14 +188,7 @@ local function startWindowDrag(win, targetIndex)
 
   local originalMouse = hs.mouse.absolutePosition()
   local originalSpace = hs.spaces.focusedSpace()
-  local originalIndex = originalSpace and spaceIndex(originalSpace) or nil
-  local winId = win:id()
-  if not winId then
-    return nil
-  end
-  local app = win:application()
-  local winPid = app and app:pid() or nil
-  local winTitle = win:title()
+  local originalIndex = originalSpace and indexForSpace(originalSpace) or nil
 
   hs.mouse.absolutePosition(dragPoint)
   hs.eventtap.event.newMouseEvent(hs.eventtap.event.types.leftMouseDown, dragPoint):post()
@@ -186,6 +199,7 @@ local function startWindowDrag(win, targetIndex)
     winPid = winPid,
     winTitle = winTitle,
     targetIndex = targetIndex,
+    targetSpace = targetSpace,
     dragPoint2 = dragPoint2,
     originalMouse = originalMouse,
     originalIndex = originalIndex,
@@ -201,10 +215,8 @@ local function finishWindowDrag(pending)
     switchToSpaceIndex(pending.targetIndex)
     hs.timer.doAfter(MOVE_DROP_DELAY_SEC, function()
       hs.eventtap.event.newMouseEvent(hs.eventtap.event.types.leftMouseUp, pending.dragPoint2):post()
-      local spaces = orderedSpaces()
-      local space = spaces[pending.targetIndex]
-      if space then
-        hs.spaces.moveWindowToSpace(pending.winId, space, true)
+      if pending.targetSpace then
+        hs.spaces.moveWindowToSpace(pending.winId, pending.targetSpace, true)
       end
       if MOVE_RETURN_TO_ORIGINAL and pending.originalIndex and pending.originalIndex ~= pending.targetIndex then
         switchToSpaceIndex(pending.originalIndex)
@@ -228,22 +240,21 @@ local function moveWindowToSpaceCrossDisplay(win, targetIndex)
   if not winId then
     return false
   end
+
+  local space, targetDisplay = spaceForIndex(targetIndex)
+  if not space or not targetDisplay then
+    return false
+  end
+
+  local currentScreen = win:screen()
+  local currentDisplay = currentScreen and currentScreen:getUUID() or nil
+  if not currentDisplay or targetDisplay == currentDisplay then
+    return false
+  end
+
   local app = win:application()
   local winPid = app and app:pid() or nil
   local winTitle = win:title()
-
-  local spaces = orderedSpaces()
-  local space = spaces[targetIndex]
-  if not space then
-    return false
-  end
-
-  local targetDisplay = spaceDisplayForId(space)
-  local currentScreen = win:screen()
-  local currentDisplay = currentScreen and currentScreen:getUUID() or nil
-  if not targetDisplay or not currentDisplay or targetDisplay == currentDisplay then
-    return false
-  end
 
   switchToSpaceIndex(targetIndex)
   hs.timer.doAfter(MOVE_PRE_SWITCH_DELAY_SEC, function()
@@ -263,20 +274,9 @@ local function moveWindowToSpaceCrossDisplay(win, targetIndex)
   return true
 end
 
-local function modifiersMatch(flags, modifiers)
-  for _, key in ipairs(MODIFIER_KEYS) do
-    local want = modifiers[key] or false
-    local have = flags[key] or false
-    if have ~= want then
-      return false
-    end
-  end
-  return true
-end
-
 local keycodeToIndex = {}
-for i, key in ipairs(SPACE_KEYS) do
-  keycodeToIndex[hs.keycodes.map[key]] = i
+for i = 1, 9 do
+  keycodeToIndex[hs.keycodes.map[tostring(i)]] = i
 end
 
 local pendingFocusTimer = nil
@@ -316,8 +316,7 @@ spaceFocusOptionTap = hs.eventtap.new({
     end
 
     pendingFocusTimer = hs.timer.doAfter(FOCUS_DELAY_SEC, function()
-      local spaces = orderedSpaces()
-      local space = spaces[index]
+      local space = spaceForIndex(index)
       if space then
         focusWindowForSpace(space)
       end
@@ -332,8 +331,6 @@ spaceFocusOptionTap = hs.eventtap.new({
       pendingMove = nil
       return true
     end
-
-    return false
   end
 
   return false
