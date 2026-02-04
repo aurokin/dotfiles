@@ -77,6 +77,11 @@ pattern="${TMUX_AGENTS_PATTERN:-$pattern_default}"
 sample_lines="${TMUX_AGENTS_SAMPLE_LINES:-120}"
 sample_regex="${TMUX_AGENTS_SAMPLE_REGEX:-$sample_regex_default}"
 cmd_allowlist="${TMUX_AGENTS_CMD_ALLOWLIST:-$cmd_allowlist_default}"
+allowlist_items=()
+allowlist_ifs="$IFS"
+IFS=','
+read -r -a allowlist_items <<< "$cmd_allowlist"
+IFS="$allowlist_ifs"
 script_basename="$(basename "$0")"
 script_path="$0"
 json_output=0
@@ -110,6 +115,10 @@ while [[ $# -gt 0 ]]; do
 done
 found=0
 json_first=1
+want_details=0
+if ((json_output || debug)); then
+  want_details=1
+fi
 
 json_escape() {
   local s="$1"
@@ -144,7 +153,6 @@ has_allowed_cmd() {
   local cmd="$1"
   [[ -z "$cmd" ]] && return 1
   local item
-  IFS=',' read -r -a allowlist_items <<< "$cmd_allowlist"
   for item in "${allowlist_items[@]}"; do
     [[ -z "$item" ]] && continue
     if [[ "$cmd" == "$item" ]]; then
@@ -193,7 +201,7 @@ while IFS=$' \t' read -r pid ppid tty comm cmdline; do
 
   proc_line="$pid ${cmdline:-$comm}"
 
-  if [[ -n "$ppid" ]]; then
+  if ((deep == 1)) && [[ -n "$ppid" ]]; then
     if [[ -n "${ppid_children[$ppid]+x}" ]]; then
       ppid_children["$ppid"]+=$'\n'"$proc_line"
     else
@@ -211,22 +219,34 @@ while IFS=$' \t' read -r pid ppid tty comm cmdline; do
 done < <(ps -axo pid=,ppid=,tty=,comm=,command= 2>/dev/null || true)
 
 while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_title pane_tty; do
-  matches=()
-  child_processes=()
-  tty_matches=()
+  pane_matched=0
   pane_sample_matched=0
+  if ((want_details)); then
+    matches=()
+    child_processes=()
+    tty_matches=()
+  fi
 
     if has_allowed_cmd "$pane_cmd"; then
-      matches+=("current_command: $pane_cmd")
+      pane_matched=1
+      if ((want_details)); then
+        matches+=("current_command: $pane_cmd")
+      fi
     fi
 
     proc_name="${pid_comm[$pane_pid]-}"
     proc_cmdline="${pid_cmdline[$pane_pid]-}"
     if has_allowed_cmd "$proc_name"; then
-      matches+=("pane_process: $proc_name")
+      pane_matched=1
+      if ((want_details)); then
+        matches+=("pane_process: $proc_name")
+      fi
     fi
     if [[ -n "$proc_cmdline" ]] && [[ "$proc_cmdline" =~ $pattern ]]; then
-      matches+=("pane_cmdline: $proc_cmdline")
+      pane_matched=1
+      if ((want_details)); then
+        matches+=("pane_cmdline: $proc_cmdline")
+      fi
     fi
 
     if ((deep == 1)); then
@@ -234,54 +254,67 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
       if [[ -n "$child_blob" ]]; then
         while IFS= read -r line; do
           if ! is_self_line "$line" && { line_has_allowed_cmd "$line" || line_matches_pattern "$line"; }; then
-            child_processes+=("$line")
+            pane_matched=1
+            if ((want_details)); then
+              child_processes+=("$line")
+            fi
           fi
         done <<< "$child_blob"
       fi
     fi
 
-    tty_short="${pane_tty#/dev/}"
-    if [[ -n "$tty_short" ]]; then
-      tty_blob="${tty_process_map[$tty_short]-}"
-      if [[ -n "$tty_blob" ]]; then
-        while IFS= read -r line; do
-          if is_self_line "$line"; then
-            continue
-          fi
-          if line_matches_pattern "$line" || { ((deep == 1)) && line_has_allowed_cmd "$line"; }; then
-            tty_matches+=("$line")
-          fi
-        done <<< "$tty_blob"
+    if ! ((pane_matched == 1 && deep == 0)); then
+      tty_short="${pane_tty#/dev/}"
+      if [[ -n "$tty_short" ]]; then
+        tty_blob="${tty_process_map[$tty_short]-}"
+        if [[ -n "$tty_blob" ]]; then
+          while IFS= read -r line; do
+            if is_self_line "$line"; then
+              continue
+            fi
+            if line_matches_pattern "$line" || { ((deep == 1)) && line_has_allowed_cmd "$line"; }; then
+              pane_matched=1
+              if ((want_details)); then
+                tty_matches+=("$line")
+              fi
+            fi
+          done <<< "$tty_blob"
+        fi
       fi
     fi
 
-    for line in "${child_processes[@]}"; do
-      matches+=("child_process: $line")
-    done
-    for line in "${tty_matches[@]}"; do
-      matches+=("tty_process: $line")
-    done
+    if ((want_details)); then
+      for line in "${child_processes[@]}"; do
+        matches+=("child_process: $line")
+      done
+      for line in "${tty_matches[@]}"; do
+        matches+=("tty_process: $line")
+      done
+    fi
 
-    if ((${#matches[@]} > 0)) && [[ "$pane_id" == %* ]]; then
+    if ((pane_matched == 1)) && [[ "$pane_id" == %* ]]; then
       pane_sample="$(tmux capture-pane -p -t "$pane_id" -S "-$sample_lines" 2>/dev/null || true)"
       if [[ -n "$pane_sample" ]]; then
         if ((rg_available)); then
-          if echo "$pane_sample" | rg -i -n -m 1 -e "$sample_regex" >/dev/null 2>&1; then
+          if echo "$pane_sample" | rg -q -i -m 1 -e "$sample_regex" >/dev/null 2>&1; then
             pane_sample_matched=1
-            matches+=("pane_sample: matched /$sample_regex/ in last ${sample_lines} lines")
+            if ((want_details)); then
+              matches+=("pane_sample: matched /$sample_regex/ in last ${sample_lines} lines")
+            fi
           fi
         else
-          if echo "$pane_sample" | grep -i -m 1 -E "$sample_regex" >/dev/null 2>&1; then
+          if echo "$pane_sample" | grep -q -i -m 1 -E "$sample_regex" >/dev/null 2>&1; then
             pane_sample_matched=1
-            matches+=("pane_sample: matched /$sample_regex/ in last ${sample_lines} lines")
+            if ((want_details)); then
+              matches+=("pane_sample: matched /$sample_regex/ in last ${sample_lines} lines")
+            fi
           fi
         fi
       fi
     fi
 
-  if ((${#matches[@]} > 0)); then
+  if ((pane_matched == 1)); then
     found=1
-    building_label="Idle"
     building_emoji="🟢"
     building_bool="false"
     if ((pane_sample_matched == 1)); then
