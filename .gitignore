@@ -3,3 +3,4 @@ tmux/.tmux/plugins/*
 workspace/*
 **/workspace/*
 lazygit/.config/lazygit/state.yml
+mise/.config/mise/config.local.toml
