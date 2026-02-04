@@ -14,9 +14,9 @@ npm install -g @google/gemini-cli
 npm install -g @github/copilot
 gem install cocoapods fastlane
 
-python -m pipx install beautysh
-python -m pipx install httpie
-python -m pipx install ranger-fm
+python -m pipx install beautysh --force
+python -m pipx install httpie --force
+python -m pipx install ranger-fm --force
 
 mise reshim
 
