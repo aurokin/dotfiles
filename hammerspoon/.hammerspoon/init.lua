@@ -1,4 +1,5 @@
 local FOCUS_DELAY_SEC = 0.2
+local MOVE_PRE_SWITCH_DELAY_SEC = 0.2
 local MOVE_SWITCH_DELAY_SEC = 0.05
 local MOVE_DROP_DELAY_SEC = 0.2
 local MOVE_MAXIMIZE_DELAY_SEC = 0.02
@@ -63,6 +64,18 @@ local function orderedSpaces()
     end
   end
   return ordered
+end
+
+local function spaceDisplayForId(spaceId)
+  local spacesByScreen = hs.spaces.allSpaces()
+  for uuid, spaces in pairs(spacesByScreen) do
+    for _, space in ipairs(spaces) do
+      if space == spaceId then
+        return uuid
+      end
+    end
+  end
+  return nil
 end
 
 local function spaceIndex(spaceId)
@@ -198,29 +211,21 @@ local function moveWindowToSpaceCrossDisplay(win, targetIndex)
     return false
   end
 
-  local targetDisplay = hs.spaces.spaceDisplay(space)
-  local currentSpace = hs.spaces.focusedSpace()
-  local currentDisplay = currentSpace and hs.spaces.spaceDisplay(currentSpace) or nil
+  local targetDisplay = spaceDisplayForId(space)
+  local currentScreen = win:screen()
+  local currentDisplay = currentScreen and currentScreen:getUUID() or nil
   if not targetDisplay or not currentDisplay or targetDisplay == currentDisplay then
     return false
   end
 
-  local targetScreen = hs.screen.find(targetDisplay)
-  if targetScreen and win:screen() ~= targetScreen then
-    win:moveToScreen(targetScreen)
-  end
-
-  hs.timer.doAfter(0.1, function()
-    local ok = hs.spaces.moveWindowToSpace(winId, space, true)
-    if ok then
-      hs.timer.doAfter(MOVE_MAXIMIZE_DELAY_SEC, function()
-        maximizeWindowById(winId)
-      end)
-      return
+  switchToSpaceIndex(targetIndex)
+  hs.timer.doAfter(MOVE_PRE_SWITCH_DELAY_SEC, function()
+    local targetScreen = hs.screen.find(targetDisplay)
+    if targetScreen and win:screen() ~= targetScreen then
+      win:moveToScreen(targetScreen)
     end
 
-    switchToSpaceIndex(targetIndex)
-    hs.timer.doAfter(MOVE_DROP_DELAY_SEC, function()
+    hs.timer.doAfter(MOVE_SWITCH_DELAY_SEC, function()
       hs.spaces.moveWindowToSpace(winId, space, true)
       hs.timer.doAfter(MOVE_MAXIMIZE_DELAY_SEC, function()
         maximizeWindowById(winId)
