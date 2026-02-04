@@ -1,6 +1,7 @@
 local FOCUS_DELAY_SEC = 0.2
 local MOVE_SWITCH_DELAY_SEC = 0.05
-local MOVE_DROP_DELAY_SEC = 0.4
+local MOVE_DROP_DELAY_SEC = 0.2
+local MOVE_MAXIMIZE_DELAY_SEC = 0.02
 local MOVE_RETURN_TO_ORIGINAL = false
 local SPACE_KEYS = { "1", "2", "3", "4", "5", "6", "7", "8", "9" }
 local FOCUS_MODIFIERS = { alt = true }
@@ -74,6 +75,23 @@ local function spaceIndex(spaceId)
   return nil
 end
 
+local function switchToSpaceIndex(index)
+  local keyDown = hs.eventtap.event.newKeyEvent(MOVE_SWITCH_KEYS, tostring(index), true)
+  local keyUp = hs.eventtap.event.newKeyEvent(MOVE_SWITCH_KEYS, tostring(index), false)
+  keyDown:post()
+  keyUp:post()
+end
+
+local function maximizeWindowById(winId)
+  if not winId then
+    return
+  end
+  local win = hs.window.get(winId)
+  if win then
+    win:maximize()
+  end
+end
+
 local function dragPointForWindow(win)
   local frame = win:frame()
   if not frame then
@@ -124,13 +142,17 @@ local function startWindowDrag(win, targetIndex)
   local originalMouse = hs.mouse.absolutePosition()
   local originalSpace = hs.spaces.focusedSpace()
   local originalIndex = originalSpace and spaceIndex(originalSpace) or nil
+  local winId = win:id()
+  if not winId then
+    return nil
+  end
 
   hs.mouse.absolutePosition(dragPoint)
   hs.eventtap.event.newMouseEvent(hs.eventtap.event.types.leftMouseDown, dragPoint):post()
   hs.eventtap.event.newMouseEvent(hs.eventtap.event.types.leftMouseDragged, dragPoint2):post()
 
   return {
-    win = win,
+    winId = winId,
     targetIndex = targetIndex,
     dragPoint2 = dragPoint2,
     originalMouse = originalMouse,
@@ -144,26 +166,69 @@ local function finishWindowDrag(pending)
   end
 
   hs.timer.doAfter(MOVE_SWITCH_DELAY_SEC, function()
-    local keyDown = hs.eventtap.event.newKeyEvent(MOVE_SWITCH_KEYS, tostring(pending.targetIndex), true)
-    local keyUp = hs.eventtap.event.newKeyEvent(MOVE_SWITCH_KEYS, tostring(pending.targetIndex), false)
-    keyDown:post()
-    keyUp:post()
+    switchToSpaceIndex(pending.targetIndex)
     hs.timer.doAfter(MOVE_DROP_DELAY_SEC, function()
       hs.eventtap.event.newMouseEvent(hs.eventtap.event.types.leftMouseUp, pending.dragPoint2):post()
       if MOVE_RETURN_TO_ORIGINAL and pending.originalIndex and pending.originalIndex ~= pending.targetIndex then
-        local backDown = hs.eventtap.event.newKeyEvent(MOVE_SWITCH_KEYS, tostring(pending.originalIndex), true)
-        local backUp = hs.eventtap.event.newKeyEvent(MOVE_SWITCH_KEYS, tostring(pending.originalIndex), false)
-        backDown:post()
-        backUp:post()
+        switchToSpaceIndex(pending.originalIndex)
       end
-      if pending.win then
-        pending.win:maximize()
-      end
+      hs.timer.doAfter(MOVE_MAXIMIZE_DELAY_SEC, function()
+        maximizeWindowById(pending.winId)
+      end)
       if pending.originalMouse then
         hs.mouse.absolutePosition(pending.originalMouse)
       end
     end)
   end)
+end
+
+local function moveWindowToSpaceCrossDisplay(win, targetIndex)
+  if not win or win:isFullScreen() then
+    return false
+  end
+
+  local winId = win:id()
+  if not winId then
+    return false
+  end
+
+  local spaces = orderedSpaces()
+  local space = spaces[targetIndex]
+  if not space then
+    return false
+  end
+
+  local targetDisplay = hs.spaces.spaceDisplay(space)
+  local currentSpace = hs.spaces.focusedSpace()
+  local currentDisplay = currentSpace and hs.spaces.spaceDisplay(currentSpace) or nil
+  if not targetDisplay or not currentDisplay or targetDisplay == currentDisplay then
+    return false
+  end
+
+  local targetScreen = hs.screen.find(targetDisplay)
+  if targetScreen and win:screen() ~= targetScreen then
+    win:moveToScreen(targetScreen)
+  end
+
+  hs.timer.doAfter(0.1, function()
+    local ok = hs.spaces.moveWindowToSpace(winId, space, true)
+    if ok then
+      hs.timer.doAfter(MOVE_MAXIMIZE_DELAY_SEC, function()
+        maximizeWindowById(winId)
+      end)
+      return
+    end
+
+    switchToSpaceIndex(targetIndex)
+    hs.timer.doAfter(MOVE_DROP_DELAY_SEC, function()
+      hs.spaces.moveWindowToSpace(winId, space, true)
+      hs.timer.doAfter(MOVE_MAXIMIZE_DELAY_SEC, function()
+        maximizeWindowById(winId)
+      end)
+    end)
+  end)
+
+  return true
 end
 
 local function modifiersMatch(flags, modifiers)
@@ -200,8 +265,13 @@ spaceFocusOptionTap = hs.eventtap.new({
   local flags = event:getFlags()
   if event:getType() == hs.eventtap.event.types.keyDown then
     if modifiersMatch(flags, MOVE_MODIFIERS) then
-      pendingMove = startWindowDrag(hs.window.frontmostWindow(), index)
-      return true
+      local win = hs.window.frontmostWindow()
+      if moveWindowToSpaceCrossDisplay(win, index) then
+        return true
+      end
+
+      pendingMove = startWindowDrag(win, index)
+      return pendingMove ~= nil
     end
 
     if not modifiersMatch(flags, FOCUS_MODIFIERS) then
@@ -225,7 +295,7 @@ spaceFocusOptionTap = hs.eventtap.new({
   end
 
   if event:getType() == hs.eventtap.event.types.keyUp then
-    if pendingMove and modifiersMatch(flags, MOVE_MODIFIERS) then
+    if pendingMove and pendingMove.targetIndex == index then
       finishWindowDrag(pendingMove)
       pendingMove = nil
       return true
