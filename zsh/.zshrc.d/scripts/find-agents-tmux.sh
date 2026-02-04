@@ -12,10 +12,71 @@ if ! tmux list-sessions >/dev/null 2>&1; then
   exit 0
 fi
 
-pattern="${OPENCODE_PATTERN:-opencode}"
-sample_lines="${OPENCODE_SAMPLE_LINES:-120}"
-sample_regex="${OPENCODE_SAMPLE_REGEX:-esc interrupt}"
-cmd_allowlist="${OPENCODE_CMD_ALLOWLIST:-opencode}"
+providers_raw="${TMUX_AGENTS_PROVIDERS:-opencode,gemini}"
+providers_raw="${providers_raw//,/ }"
+providers=()
+old_ifs="$IFS"
+IFS=' '
+read -r -a providers <<< "$providers_raw"
+IFS="$old_ifs"
+
+declare -A provider_pattern
+declare -A provider_cmd
+declare -A provider_sample_regex
+provider_pattern[opencode]="opencode"
+provider_cmd[opencode]="opencode"
+provider_sample_regex[opencode]="esc interrupt"
+provider_pattern[gemini]="gemini"
+provider_cmd[gemini]="gemini"
+provider_sample_regex[gemini]="esc to cancel"
+
+join_with_delim() {
+  local delim="$1"
+  shift
+  local out=""
+  local item
+  for item in "$@"; do
+    [[ -z "$item" ]] && continue
+    if [[ -z "$out" ]]; then
+      out="$item"
+    else
+      out+="$delim$item"
+    fi
+  done
+  printf '%s' "$out"
+}
+
+build_patterns=()
+build_allowlist=()
+build_sample_regexes=()
+for provider in "${providers[@]}"; do
+  [[ -z "$provider" ]] && continue
+  pattern_item="${provider_pattern[$provider]-$provider}"
+  cmd_item="${provider_cmd[$provider]-$provider}"
+  sample_item="${provider_sample_regex[$provider]-}"
+  [[ -n "$pattern_item" ]] && build_patterns+=("$pattern_item")
+  [[ -n "$cmd_item" ]] && build_allowlist+=("$cmd_item")
+  [[ -n "$sample_item" ]] && build_sample_regexes+=("$sample_item")
+done
+
+pattern_default="$(join_with_delim '|' "${build_patterns[@]}")"
+cmd_allowlist_default="$(join_with_delim ',' "${build_allowlist[@]}")"
+sample_regex_default="$(join_with_delim '|' "${build_sample_regexes[@]}")"
+
+if [[ -z "$pattern_default" ]]; then
+  pattern_default="opencode|gemini"
+fi
+if [[ -z "$cmd_allowlist_default" ]]; then
+  cmd_allowlist_default="opencode,gemini"
+fi
+if [[ -z "$sample_regex_default" ]]; then
+  sample_regex_default="esc interrupt|esc to cancel"
+fi
+
+pattern="${TMUX_AGENTS_PATTERN:-$pattern_default}"
+sample_lines="${TMUX_AGENTS_SAMPLE_LINES:-120}"
+sample_regex="${TMUX_AGENTS_SAMPLE_REGEX:-$sample_regex_default}"
+cmd_allowlist="${TMUX_AGENTS_CMD_ALLOWLIST:-$cmd_allowlist_default}"
 script_basename="$(basename "$0")"
 script_path="$0"
 json_output=0
@@ -24,12 +85,14 @@ deep=0
 
 usage() {
   cat <<'USAGE'
-Usage: find-opencode-tmux.sh [--json] [--debug] [--deep]
+Usage: find-agents-tmux.sh [--json] [--debug] [--deep]
 
 Environment:
-  OPENCODE_PATTERN       Pattern to identify opencode panes (default: "opencode")
-  OPENCODE_SAMPLE_LINES  Lines to sample from pane (default: 120)
-  OPENCODE_SAMPLE_REGEX  Regex to detect "building" state (default: "esc interrupt")
+  TMUX_AGENTS_PROVIDERS       Comma or space-separated list (default: "opencode,gemini")
+  TMUX_AGENTS_PATTERN         Regex to identify agent panes (default: "opencode|gemini")
+  TMUX_AGENTS_SAMPLE_LINES    Lines to sample from pane (default: 120)
+  TMUX_AGENTS_SAMPLE_REGEX    Regex to detect "building" state (default: "esc interrupt|esc to cancel")
+  TMUX_AGENTS_CMD_ALLOWLIST   Command allowlist (default: "opencode,gemini")
 Flags:
   --deep  Run slower process scans (child/tty) for better detection
 USAGE
@@ -100,6 +163,12 @@ line_has_allowed_cmd() {
   has_allowed_cmd "$cmd_token" || has_allowed_cmd "$cmd_base"
 }
 
+line_matches_pattern() {
+  local line="$1"
+  [[ -z "$line" ]] && return 1
+  [[ "$line" =~ $pattern ]]
+}
+
 is_self_line() {
   local line="$1"
   [[ -z "$line" ]] && return 1
@@ -114,9 +183,9 @@ fi
 declare -A pid_comm
 declare -A pid_cmdline
 declare -A ppid_children
-declare -A tty_processes
+declare -A tty_process_map
 
-while read -r pid ppid tty comm cmdline; do
+while IFS=$' \t' read -r pid ppid tty comm cmdline; do
   [[ -z "$pid" ]] && continue
 
   pid_comm["$pid"]="$comm"
@@ -133,10 +202,10 @@ while read -r pid ppid tty comm cmdline; do
   fi
 
   if [[ -n "$tty" ]]; then
-    if [[ -n "${tty_processes[$tty]+x}" ]]; then
-      tty_processes["$tty"]+=$'\n'"$proc_line"
+    if [[ -n "${tty_process_map[$tty]+x}" ]]; then
+      tty_process_map["$tty"]+=$'\n'"$proc_line"
     else
-      tty_processes["$tty"]="$proc_line"
+      tty_process_map["$tty"]="$proc_line"
     fi
   fi
 done < <(ps -axo pid=,ppid=,tty=,comm=,command= 2>/dev/null || true)
@@ -144,7 +213,7 @@ done < <(ps -axo pid=,ppid=,tty=,comm=,command= 2>/dev/null || true)
 while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_title pane_tty; do
   matches=()
   child_processes=()
-  tty_processes=()
+  tty_matches=()
   pane_sample_matched=0
 
     if has_allowed_cmd "$pane_cmd"; then
@@ -156,7 +225,7 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
     if has_allowed_cmd "$proc_name"; then
       matches+=("pane_process: $proc_name")
     fi
-    if [[ -n "$proc_cmdline" ]] && [[ "$proc_cmdline" == *"$pattern"* ]]; then
+    if [[ -n "$proc_cmdline" ]] && [[ "$proc_cmdline" =~ $pattern ]]; then
       matches+=("pane_cmdline: $proc_cmdline")
     fi
 
@@ -164,31 +233,34 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
       child_blob="${ppid_children[$pane_pid]-}"
       if [[ -n "$child_blob" ]]; then
         while IFS= read -r line; do
-          if line_has_allowed_cmd "$line" && ! is_self_line "$line"; then
+          if ! is_self_line "$line" && { line_has_allowed_cmd "$line" || line_matches_pattern "$line"; }; then
             child_processes+=("$line")
           fi
         done <<< "$child_blob"
       fi
-
-      tty_short="${pane_tty#/dev/}"
-      if [[ -n "$tty_short" ]]; then
-        tty_blob="${tty_processes[$tty_short]-}"
-        if [[ -n "$tty_blob" ]]; then
-          while IFS= read -r line; do
-            if line_has_allowed_cmd "$line" && ! is_self_line "$line"; then
-              tty_processes+=("$line")
-            fi
-          done <<< "$tty_blob"
-        fi
-      fi
-
-      for line in "${child_processes[@]}"; do
-        matches+=("child_process: $line")
-      done
-      for line in "${tty_processes[@]}"; do
-        matches+=("tty_process: $line")
-      done
     fi
+
+    tty_short="${pane_tty#/dev/}"
+    if [[ -n "$tty_short" ]]; then
+      tty_blob="${tty_process_map[$tty_short]-}"
+      if [[ -n "$tty_blob" ]]; then
+        while IFS= read -r line; do
+          if is_self_line "$line"; then
+            continue
+          fi
+          if line_matches_pattern "$line" || { ((deep == 1)) && line_has_allowed_cmd "$line"; }; then
+            tty_matches+=("$line")
+          fi
+        done <<< "$tty_blob"
+      fi
+    fi
+
+    for line in "${child_processes[@]}"; do
+      matches+=("child_process: $line")
+    done
+    for line in "${tty_matches[@]}"; do
+      matches+=("tty_process: $line")
+    done
 
     if ((${#matches[@]} > 0)) && [[ "$pane_id" == %* ]]; then
       pane_sample="$(tmux capture-pane -p -t "$pane_id" -S "-$sample_lines" 2>/dev/null || true)"
@@ -248,7 +320,7 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
       json_field_raw "building" "$building_bool"
       json_field_raw "matches" "$(json_array "${matches[@]}")"
       json_field_raw "child_processes" "$(json_array "${child_processes[@]}")"
-      printf '"tty_processes":%s' "$(json_array "${tty_processes[@]}")"
+      printf '"tty_processes":%s' "$(json_array "${tty_matches[@]}")"
       printf '}'
     else
       printf '%s %s:%s.%s - %s\n' "$building_emoji" "$session" "$win_idx" "$pane_idx" "$display_title"
@@ -270,5 +342,5 @@ if ((json_output)); then
   fi
   printf '\n'
 elif ((found == 0)); then
-  echo "No opencode instances found in tmux panes."
+  echo "No agent instances found in tmux panes."
 fi

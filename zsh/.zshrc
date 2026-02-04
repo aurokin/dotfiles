@@ -64,7 +64,7 @@ alias gcb="git checkout \$(git branch | fzf)"
 alias lg="lazygit"
 alias rr="rm -rf"
 alias twm="source ~/.zshrc.d/scripts/twigsmux.sh"
-alias agents="$HOME/.zshrc.d/scripts/find-opencode-tmux.sh"
+alias agents="$HOME/.zshrc.d/scripts/find-agents-tmux.sh"
 alias zshrd="source ~/.zshrc"
 alias pscripts="$HOME/.zshrc.d/scripts/list-package-json-scripts.sh"
 

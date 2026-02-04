@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 while :; do
-  ~/.zshrc.d/scripts/find-opencode-tmux.sh
+  ~/.zshrc.d/scripts/find-agents-tmux.sh
   printf '\n'
   printf 'r to refresh, any key to close\n'
   IFS= read -r -s -n 1 key || exit 0
