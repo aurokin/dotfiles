@@ -47,16 +47,6 @@ prompt pure
 
 export PATH="$HOME/.bin:$HOME/.local/bin:$PATH"
 
-# JDTLS
-export JDTLS_ENABLED=false
-jdtls_dir="/usr/local/lib/jdtls"
-if [[ -d "$jdtls_dir" ]]; then
-    export JDTLS_DIR="$jdtls_dir"
-    if [[ -d "$jdtls_dir/bin" ]]; then
-        export PATH="$jdtls_dir/bin:$PATH"
-    fi
-fi
-
 # Set Aliases
 alias c="clear"
 alias e="exit"
@@ -70,7 +60,6 @@ alias gl="git log"
 alias gs="git status"
 alias gd="git diff"
 alias gp="git push"
-alias jdtls="export JDTLS_ENABLED=true"
 alias gcb="git checkout \$(git branch | fzf)"
 alias lg="lazygit"
 alias rr="rm -rf"

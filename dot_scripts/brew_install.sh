@@ -19,12 +19,14 @@ brew install coreutils
 brew install gawk
 brew install gnu-sed
 brew install ffmpeg
+brew install git
 brew install gh
 brew install glab
 brew install anomalyco/tap/opencode
 brew install steipete/tap/remindctl
 
 brew install zsh
+brew install pure
 brew install wget
 brew install tmux
 brew install tpm

@@ -9,6 +9,7 @@ python -m pip install --user pipx
 corepack enable
 npm install -g @fsouza/prettierd
 npm install -g @vue/typescript-plugin typescript-language-server
+npm install -g typescript
 npm install -g @google/gemini-cli
 npm install -g @github/copilot
 gem install cocoapods fastlane

@@ -10,7 +10,8 @@ sudo apt-get install -y \
   obs-studio \
   plexmediaserver \
   steamcmd:i386 \
-  sunshine
+  sunshine \
+  vesktop
 
 if command -v snap >/dev/null; then
   sudo snap install firefox
