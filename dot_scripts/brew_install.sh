@@ -9,12 +9,22 @@ brew install xcbeautify
 
 brew install jq
 brew install libyaml
+brew install bash
+brew install bc
+brew install coreutils
+brew install gawk
+brew install gnu-sed
+brew install nowplaying-cli
+brew install ffmpeg
+brew install gh
+brew install glab
+brew install rename
+brew install anomalyco/tap/opencode
 
 brew install zsh
 brew install pure
 brew install wget
 brew install tmux
-brew install httpie
 brew install bat
 brew install eza
 brew install fzf
@@ -34,7 +44,3 @@ brew install rclone
 brew install termscp
 brew install lazydocker
 brew install lazygit
-
-brew install prettierd
-brew install ranger
-brew install beautysh
