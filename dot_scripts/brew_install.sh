@@ -7,12 +7,7 @@ brew install swiftlint
 brew install swiftformat
 brew install xcbeautify
 
-brew install node
-brew install python@3.13
 brew install jq
-brew install ruby
-brew install lua
-brew install go
 
 brew install zsh
 brew install pure

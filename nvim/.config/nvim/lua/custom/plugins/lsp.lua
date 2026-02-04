@@ -71,7 +71,6 @@ return {
         })
 
         -- LSP Servers
-        local npmModulesPath = vim.env.GLOBAL_NODE_MODULES
         local vue_language_server_path = vim.fn.expand '$MASON/packages' .. '/vue-language-server' .. '/node_modules/@vue/language-server'
         vim.lsp.config('rust_analyzer', {
             cargo = { allFeatures = true },

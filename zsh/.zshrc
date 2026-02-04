@@ -23,44 +23,36 @@ export LS_COLORS=true
 # Claude
 export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 
-# LANG
-export JDTLS_ENABLED=false;
-export JDTLS_DIR="/usr/local/lib/jdtls"
-
 # XDG
 export XDG_CONFIG_HOME="$HOME/.config"
 
-user=`id -un`
 if [[ $OSTYPE == *"darwin"* ]]; then
     # OSX
-    export OS="darwin";
-    export GLOBAL_NODE_MODULES="/opt/homebrew/lib/node_modules"
-    if [[ -x "/opt/homebrew/bin/brew" ]]; then
-        eval "$(/opt/homebrew/bin/brew shellenv)"
-    fi
-    export PATH="/opt/homebrew/opt/ruby/bin:$PATH"
-    export PATH="/opt/homebrew/lib/ruby/gems/3.3.0/bin:$PATH"
-    export PATH="/Users/$user/.cargo/bin:$PATH"
-    export PATH="/Users/$user/.bin:$PATH"
-    export PATH="/Users/$user/.local/bin:$PATH"
-
-    if [[ -d "/Library/Java/JavaVirtualMachines/zulu-8.jdk/Contents/Home/bin" ]]; then
-        export PATH="/Library/Java/JavaVirtualMachines/zulu-8.jdk/Contents/Home/bin:$PATH" 
-    fi
+    export OS="darwin"
+    brew_bin="/opt/homebrew/bin/brew"
 else
     export OS="unix"
-    export GLOBAL_NODE_MODULES="/usr/lib/node_modules" 
+    brew_bin="/home/linuxbrew/.linuxbrew/bin/brew"
     export PATH="/opt/swift/usr/bin:$PATH"
-    if [[ -x "/home/linuxbrew/.linuxbrew/bin/brew" ]]; then
-        eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-    elif command -v brew >/dev/null 2>&1; then
-        eval "$(brew shellenv)"
-    fi
-    export PATH="/home/$user/.cargo/bin:$PATH"
-    export PATH="/home/$user/.bin:$PATH"
-    export PATH="/home/$user/.local/bin:$PATH"
-    export PATH="$HOME/.npm-global/bin:$PATH"
     export SUDO_EDITOR="nvim"
+fi
+
+if [[ -x "$brew_bin" ]]; then
+    eval "$("$brew_bin" shellenv)"
+elif command -v brew >/dev/null 2>&1; then
+    eval "$(brew shellenv)"
+fi
+
+export PATH="$HOME/.bin:$HOME/.local/bin:$PATH"
+
+# JDTLS
+export JDTLS_ENABLED=false
+jdtls_dir="/usr/local/lib/jdtls"
+if [[ -d "$jdtls_dir" ]]; then
+    export JDTLS_DIR="$jdtls_dir"
+    if [[ -d "$jdtls_dir/bin" ]]; then
+        export PATH="$jdtls_dir/bin:$PATH"
+    fi
 fi
 
 # Set Aliases
@@ -113,6 +105,11 @@ fi
 
 if [[ -f "$KEYS_FILE" ]]; then
     source "$KEYS_FILE"
+fi
+
+# Mise
+if command -v mise >/dev/null 2>&1; then
+    eval "$(mise activate zsh)"
 fi
 
 # Zoxide
