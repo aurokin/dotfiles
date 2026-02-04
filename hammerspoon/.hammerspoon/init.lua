@@ -95,12 +95,26 @@ local function switchToSpaceIndex(index)
   keyUp:post()
 end
 
-local function maximizeWindowById(winId)
+local function maximizeWindowById(winId, winPid, winTitle)
   if not winId then
     return
   end
+
   local win = hs.window.get(winId)
+  if not win and winPid and winTitle then
+    local app = hs.application.get(winPid)
+    if app then
+      for _, candidate in ipairs(app:allWindows()) do
+        if candidate:title() == winTitle then
+          win = candidate
+          break
+        end
+      end
+    end
+  end
+
   if win then
+    win:focus()
     win:maximize()
   end
 end
@@ -159,6 +173,9 @@ local function startWindowDrag(win, targetIndex)
   if not winId then
     return nil
   end
+  local app = win:application()
+  local winPid = app and app:pid() or nil
+  local winTitle = win:title()
 
   hs.mouse.absolutePosition(dragPoint)
   hs.eventtap.event.newMouseEvent(hs.eventtap.event.types.leftMouseDown, dragPoint):post()
@@ -166,6 +183,8 @@ local function startWindowDrag(win, targetIndex)
 
   return {
     winId = winId,
+    winPid = winPid,
+    winTitle = winTitle,
     targetIndex = targetIndex,
     dragPoint2 = dragPoint2,
     originalMouse = originalMouse,
@@ -182,11 +201,16 @@ local function finishWindowDrag(pending)
     switchToSpaceIndex(pending.targetIndex)
     hs.timer.doAfter(MOVE_DROP_DELAY_SEC, function()
       hs.eventtap.event.newMouseEvent(hs.eventtap.event.types.leftMouseUp, pending.dragPoint2):post()
+      local spaces = orderedSpaces()
+      local space = spaces[pending.targetIndex]
+      if space then
+        hs.spaces.moveWindowToSpace(pending.winId, space, true)
+      end
       if MOVE_RETURN_TO_ORIGINAL and pending.originalIndex and pending.originalIndex ~= pending.targetIndex then
         switchToSpaceIndex(pending.originalIndex)
       end
       hs.timer.doAfter(MOVE_MAXIMIZE_DELAY_SEC, function()
-        maximizeWindowById(pending.winId)
+        maximizeWindowById(pending.winId, pending.winPid, pending.winTitle)
       end)
       if pending.originalMouse then
         hs.mouse.absolutePosition(pending.originalMouse)
@@ -204,6 +228,9 @@ local function moveWindowToSpaceCrossDisplay(win, targetIndex)
   if not winId then
     return false
   end
+  local app = win:application()
+  local winPid = app and app:pid() or nil
+  local winTitle = win:title()
 
   local spaces = orderedSpaces()
   local space = spaces[targetIndex]
@@ -228,7 +255,7 @@ local function moveWindowToSpaceCrossDisplay(win, targetIndex)
     hs.timer.doAfter(MOVE_SWITCH_DELAY_SEC, function()
       hs.spaces.moveWindowToSpace(winId, space, true)
       hs.timer.doAfter(MOVE_MAXIMIZE_DELAY_SEC, function()
-        maximizeWindowById(winId)
+        maximizeWindowById(winId, winPid, winTitle)
       end)
     end)
   end)
