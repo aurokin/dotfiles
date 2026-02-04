@@ -1,7 +1,7 @@
 #!/bin/bash 
 
 # Make Symlinks
-stow -R zsh tmux git alacritty nvim karabiner lazygit idea bat fonts
+stow -R zsh tmux git alacritty nvim karabiner lazygit idea bat fonts hammerspoon
 
 # Clear Font Cache
 # fc-cache -f -v
