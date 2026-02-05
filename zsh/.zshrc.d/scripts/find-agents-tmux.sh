@@ -218,6 +218,12 @@ while IFS=$' \t' read -r pid ppid tty comm cmdline; do
   fi
 done < <(ps -axo pid=,ppid=,tty=,comm=,command= 2>/dev/null || true)
 
+pane_lines="$(tmux list-panes -a -F $'#{session_name}\t#{window_index}\t#{pane_index}\t#{pane_id}\t#{pane_pid}\t#{pane_current_command}\t#{pane_title}\t#{pane_tty}' 2>/dev/null || true)"
+if [[ -z "$pane_lines" ]]; then
+  echo "No tmux panes found."
+  exit 0
+fi
+
 while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_title pane_tty; do
   pane_matched=0
   pane_sample_matched=0
@@ -365,7 +371,7 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
       fi
     fi
   fi
-done < <(tmux list-panes -a -F $'#{session_name}\t#{window_index}\t#{pane_index}\t#{pane_id}\t#{pane_pid}\t#{pane_current_command}\t#{pane_title}\t#{pane_tty}')
+done <<< "$pane_lines"
 
 if ((json_output)); then
   if ((json_first)); then
