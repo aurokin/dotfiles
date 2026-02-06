@@ -55,6 +55,37 @@ join_with_delim() {
   printf '%s' "$out"
 }
 
+extract_codex_activity_title() {
+  local sample="$1"
+  local line=""
+  local title=""
+  local trimmed=""
+  local candidate=""
+  local re='^(.+)[[:space:]]*\([^)]*esc[[:space:]]+to[[:space:]]+(interrupt|cancel|stop)[^)]*\)[[:space:]]*$'
+
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+
+    trimmed="$line"
+    trimmed="$(trim_ws "$trimmed")"
+
+    # Drop leading bullets/spinners/prefix glyphs.
+    if [[ "$trimmed" =~ ^[^[:alnum:]]+[[:space:]]+(.+)$ ]]; then
+      trimmed="${BASH_REMATCH[1]}"
+      trimmed="$(trim_ws "$trimmed")"
+    fi
+
+    # Codex often prints: "<activity title> (<time> • esc to interrupt)"
+    if [[ "$trimmed" =~ $re ]]; then
+      candidate="${BASH_REMATCH[1]}"
+      candidate="$(trim_ws "$candidate")"
+      [[ -n "$candidate" ]] && title="$candidate"
+    fi
+  done <<< "$sample"
+
+  printf '%s' "$title"
+}
+
 build_patterns=()
 build_allowlist=()
 build_sample_regexes=()
@@ -203,7 +234,8 @@ has_allowed_cmd() {
   local item
   for item in "${allowlist_items[@]}"; do
     [[ -z "$item" ]] && continue
-    if [[ "$cmd" == "$item" ]]; then
+    # Treat "<item>-<suffix>" as equivalent (e.g. "codex-aarch64-a", "claude-code").
+    if [[ "$cmd" == "$item" || "$cmd" == "$item"-* ]]; then
       return 0
     fi
   done
@@ -275,6 +307,7 @@ fi
 while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_title pane_tty; do
   pane_matched=0
   pane_sample_matched=0
+  pane_activity_title=""
   if ((want_details)); then
     matches=()
     child_processes=()
@@ -290,6 +323,12 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
 
     proc_name="${pid_comm[$pane_pid]-}"
     proc_cmdline="${pid_cmdline[$pane_pid]-}"
+
+    is_codex_pane=0
+    if [[ "$pane_cmd" == codex* || "$proc_name" == codex* ]]; then
+      is_codex_pane=1
+    fi
+
     if has_allowed_cmd "$proc_name"; then
       pane_matched=1
       if ((want_details)); then
@@ -349,6 +388,12 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
     if ((pane_matched == 1)) && [[ "$pane_id" == %* ]]; then
       pane_sample="$(tmux capture-pane -p -t "$pane_id" -S "-$sample_lines" 2>/dev/null || true)"
       if [[ -n "$pane_sample" ]]; then
+        if ((is_codex_pane == 1)); then
+          pane_activity_title="$(extract_codex_activity_title "$pane_sample")"
+          if ((want_details)) && [[ -n "$pane_activity_title" ]]; then
+            matches+=("activity_title: $pane_activity_title")
+          fi
+        fi
         if ((rg_available)); then
           if echo "$pane_sample" | rg -q -i -m 1 -e "$sample_regex" >/dev/null 2>&1; then
             pane_sample_matched=1
@@ -394,6 +439,10 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
       if [[ "$display_title" =~ ^[^[:alnum:]]+[[:space:]]+(.+)$ ]]; then
         display_title="${BASH_REMATCH[1]}"
       fi
+    fi
+
+    if ((is_codex_pane == 1)) && [[ -n "$pane_activity_title" ]]; then
+      display_title="$pane_activity_title"
     fi
 
     if ((json_output)); then
