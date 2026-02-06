@@ -223,6 +223,7 @@ Environment:
   TMUX_AGENTS_SAMPLE_LINES    Lines to sample from pane (default: 120)
   TMUX_AGENTS_SAMPLE_REGEX    Regex to detect "building" state (default: "esc to cancel|esc to interrupt|esc to stop")
   TMUX_AGENTS_OPENCODE_SAMPLE_LINES Lines to sample for opencode footer detection (default: 12)
+  TMUX_AGENTS_OPENCODE_FOOTER_BUILD_REGEX Regex to detect opencode "building" from footer (default: "[■█▓▒].*esc interrupt.*ctrl\\+t variants")
   TMUX_AGENTS_CMD_ALLOWLIST   Command allowlist (default: "opencode,gemini,codex,claude")
 Flags:
   --deep  Run slower process scans (child/tty) for better detection
@@ -541,11 +542,13 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
             fi
 
             if [[ -n "$opencode_footer" ]]; then
-              if [[ "$opencode_footer" == *"esc interrupt"* && "$opencode_footer" == *"■"* ]]; then
+              opencode_footer_build_regex="${TMUX_AGENTS_OPENCODE_FOOTER_BUILD_REGEX:-[■█▓▒].*esc interrupt.*ctrl\\+t variants}"
+              if sample_matches_regex "$opencode_footer" "$opencode_footer_build_regex"; then
                 pane_sample_matched=1
               fi
               if ((want_details)); then
                 matches+=("opencode_footer: $opencode_footer")
+                matches+=("opencode_footer_build_regex: $opencode_footer_build_regex")
               fi
             fi
             ;;
