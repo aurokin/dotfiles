@@ -34,10 +34,10 @@ register_provider() {
   provider_sample_parts["$name"]="$sample_parts"
 }
 
-register_provider opencode "opencode" "opencode" "esc interrupt"
+register_provider opencode "opencode" "opencode" ""
 register_provider gemini "gemini" "gemini" "esc to cancel"
 register_provider codex "codex" "codex" "esc to cancel|esc to interrupt|esc to stop"
-register_provider claude "claude" "claude" "esc to cancel|esc to interrupt|esc to stop|esc interrupt"
+register_provider claude "claude" "claude" "esc to cancel|esc to interrupt|esc to stop"
 
 join_with_delim() {
   local delim="$1"
@@ -131,6 +131,7 @@ extract_codex_activity_title() {
   printf '%s' "$title"
 }
 
+
 build_patterns=()
 build_allowlist=()
 build_sample_regexes=()
@@ -194,7 +195,7 @@ if [[ -z "$cmd_allowlist_default" ]]; then
   cmd_allowlist_default="opencode,gemini,codex,claude"
 fi
 if [[ -z "$sample_regex_default" ]]; then
-  sample_regex_default="esc interrupt|esc to cancel|esc to interrupt|esc to stop"
+  sample_regex_default="esc to cancel|esc to interrupt|esc to stop"
 fi
 
 pattern="${TMUX_AGENTS_PATTERN:-$pattern_default}"
@@ -220,7 +221,9 @@ Environment:
   TMUX_AGENTS_PROVIDERS       Comma or space-separated list (default: "opencode,gemini,codex,claude")
   TMUX_AGENTS_PATTERN         Regex to identify agent panes (default: "opencode|gemini|codex|claude")
   TMUX_AGENTS_SAMPLE_LINES    Lines to sample from pane (default: 120)
-  TMUX_AGENTS_SAMPLE_REGEX    Regex to detect "building" state (default: "esc interrupt|esc to cancel|esc to interrupt|esc to stop")
+  TMUX_AGENTS_SAMPLE_REGEX    Regex to detect "building" state (default: "esc to cancel|esc to interrupt|esc to stop")
+  TMUX_AGENTS_OPENCODE_SAMPLE_LINES Lines to sample for opencode build detection (default: 25)
+  TMUX_AGENTS_OPENCODE_BUILD_REGEX  Regex to detect "building" for opencode (default: "^[[:space:]]*~[[:space:]]+(Writing|Running|Building|Indexing|Compiling|Installing|Bundling)")
   TMUX_AGENTS_CMD_ALLOWLIST   Command allowlist (default: "opencode,gemini,codex,claude")
 Flags:
   --deep  Run slower process scans (child/tty) for better detection
@@ -302,12 +305,31 @@ provider_from_cmd() {
   return 1
 }
 
+provider_from_text() {
+  local text="$1"
+  [[ -z "$text" ]] && return 1
+
+  local provider
+  local pat
+  for provider in "${providers[@]}"; do
+    [[ -z "$provider" ]] && continue
+    pat="${provider_pattern[$provider]-$provider}"
+    [[ -z "$pat" ]] && continue
+    if [[ "$text" =~ $pat ]]; then
+      printf '%s' "$provider"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 provider_from_ps_line() {
   local line="$1"
   [[ -z "$line" ]] && return 1
-  local cmd_token="${line#* }"
-  cmd_token="${cmd_token%% *}"
-  provider_from_cmd "$cmd_token"
+  local rest="${line#* }"
+  local cmd_token="${rest%% *}"
+  provider_from_cmd "$cmd_token" || provider_from_text "$rest"
 }
 
 line_has_allowed_cmd() {
@@ -403,6 +425,9 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
     fi
     if [[ -n "$proc_cmdline" ]] && [[ "$proc_cmdline" =~ $pattern ]]; then
       pane_matched=1
+      if [[ -z "$pane_provider" ]]; then
+        pane_provider="$(provider_from_text "$proc_cmdline" || true)"
+      fi
       if ((want_details)); then
         matches+=("pane_cmdline: $proc_cmdline")
       fi
@@ -465,19 +490,46 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
           if ((want_details)) && [[ -n "$pane_activity_title" ]]; then
             matches+=("activity_title: $pane_activity_title")
           fi
-        fi
-        if ((rg_available)); then
-          if echo "$pane_sample" | rg -q -i -m 1 -e "$sample_regex" >/dev/null 2>&1; then
+          if [[ -n "$pane_activity_title" ]]; then
             pane_sample_matched=1
-            if ((want_details)); then
-              matches+=("pane_sample: matched /$sample_regex/ in last ${sample_lines} lines")
+          fi
+        fi
+
+        if [[ "$pane_provider" == "opencode" ]]; then
+          opencode_sample_lines="${TMUX_AGENTS_OPENCODE_SAMPLE_LINES:-25}"
+          opencode_sample="$(tmux capture-pane -p -t "$pane_id" -S "-$opencode_sample_lines" 2>/dev/null || true)"
+          opencode_build_regex="${TMUX_AGENTS_OPENCODE_BUILD_REGEX:-^[[:space:]]*~[[:space:]]+(Writing|Running|Building|Indexing|Compiling|Installing|Bundling)}"
+          if ((rg_available)); then
+            if echo "$opencode_sample" | rg -q -i -m 1 -e "$opencode_build_regex" >/dev/null 2>&1; then
+              pane_sample_matched=1
+              if ((want_details)); then
+                matches+=("opencode_build: matched /$opencode_build_regex/ in last ${opencode_sample_lines} lines")
+              fi
+            fi
+          else
+            if echo "$opencode_sample" | grep -q -i -m 1 -E "$opencode_build_regex" >/dev/null 2>&1; then
+              pane_sample_matched=1
+              if ((want_details)); then
+                matches+=("opencode_build: matched /$opencode_build_regex/ in last ${opencode_sample_lines} lines")
+              fi
             fi
           fi
-        else
-          if echo "$pane_sample" | grep -q -i -m 1 -E "$sample_regex" >/dev/null 2>&1; then
-            pane_sample_matched=1
-            if ((want_details)); then
-              matches+=("pane_sample: matched /$sample_regex/ in last ${sample_lines} lines")
+        fi
+
+        if ((pane_sample_matched == 0)) && [[ "$pane_provider" != "codex" && "$pane_provider" != "opencode" ]]; then
+          if ((rg_available)); then
+            if echo "$pane_sample" | rg -q -i -m 1 -e "$sample_regex" >/dev/null 2>&1; then
+              pane_sample_matched=1
+              if ((want_details)); then
+                matches+=("pane_sample: matched /$sample_regex/ in last ${sample_lines} lines")
+              fi
+            fi
+          else
+            if echo "$pane_sample" | grep -q -i -m 1 -E "$sample_regex" >/dev/null 2>&1; then
+              pane_sample_matched=1
+              if ((want_details)); then
+                matches+=("pane_sample: matched /$sample_regex/ in last ${sample_lines} lines")
+              fi
             fi
           fi
         fi
