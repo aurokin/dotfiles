@@ -1,23 +1,23 @@
 #!/bin/bash
 
-mise install
-mise upgrade
-eval "$(mise activate bash)"
+set -euo pipefail
 
-python -m pip install --user pipx
+if ! command -v mise >/dev/null 2>&1; then
+  echo "mise not found. Install it first (dot_scripts/brew_install.sh installs it on macOS)." >&2
+  exit 1
+fi
 
-corepack enable
-npm install -g opencode-ai@latest
-npm install -g @fsouza/prettierd
-npm install -g @vue/typescript-plugin typescript-language-server
-npm install -g typescript
-npm install -g @google/gemini-cli
-npm install -g @github/copilot
-gem install cocoapods fastlane
+# This script expects tools to be declared in ~/.config/mise/config.toml (stowed from this repo).
+mise install -y
+mise upgrade -y
 
-python -m pipx install beautysh --force
-python -m pipx install httpie --force
-python -m pipx install ranger-fm --force
+# Load the mise environment for this script (so the checks below resolve the mise-managed tools).
+eval "$(mise env -s bash)"
+
+# Optional: enable package-manager shims for Node.
+if command -v corepack >/dev/null 2>&1; then
+  corepack enable || true
+fi
 
 mise reshim
 

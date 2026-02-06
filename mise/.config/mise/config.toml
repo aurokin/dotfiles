@@ -7,3 +7,22 @@ lua = "latest"
 rust = "stable"
 python = "latest"
 ruby = "latest"
+pipx = "latest"
+
+# Node CLIs
+"npm:opencode-ai" = "latest"
+"npm:@fsouza/prettierd" = "latest"
+"npm:@vue/typescript-plugin" = "latest"
+"npm:typescript-language-server" = "latest"
+"npm:typescript" = "latest"
+"npm:@google/gemini-cli" = "latest"
+"npm:@github/copilot" = "latest"
+
+# Python CLIs
+"pipx:beautysh" = "latest"
+"pipx:httpie" = "latest"
+"pipx:ranger-fm" = "latest"
+
+# Ruby CLIs
+"gem:cocoapods" = "latest"
+"gem:fastlane" = "latest"
