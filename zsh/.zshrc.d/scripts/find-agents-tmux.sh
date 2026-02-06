@@ -55,6 +55,43 @@ join_with_delim() {
   printf '%s' "$out"
 }
 
+strip_leading_glyphs() {
+  local s="$1"
+  if [[ "$s" =~ ^[^[:alnum:]]+[[:space:]]+(.+)$ ]]; then
+    printf '%s' "${BASH_REMATCH[1]}"
+  else
+    printf '%s' "$s"
+  fi
+}
+
+strip_known_prefixes() {
+  local s="$1"
+  case "$s" in
+    'OC | '*) s="${s#OC | }" ;;
+    'Claude Code | '*) s="${s#Claude Code | }" ;;
+    'Claude | '*) s="${s#Claude | }" ;;
+  esac
+  printf '%s' "$s"
+}
+
+normalize_title_for_provider() {
+  local provider="$1"
+  local title="$2"
+  local activity_title="${3:-}"
+
+  title="$(strip_known_prefixes "$title")"
+
+  if [[ "$provider" == "claude" ]]; then
+    title="$(strip_leading_glyphs "$title")"
+  fi
+
+  if [[ "$provider" == "codex" && -n "$activity_title" ]]; then
+    title="$activity_title"
+  fi
+
+  printf '%s' "$title"
+}
+
 extract_codex_activity_title() {
   local sample="$1"
   local line=""
@@ -62,26 +99,34 @@ extract_codex_activity_title() {
   local trimmed=""
   local candidate=""
   local re='^(.+)[[:space:]]*\([^)]*esc[[:space:]]+to[[:space:]]+(interrupt|cancel|stop)[^)]*\)[[:space:]]*$'
+  local lines=()
+  local i=0
 
+  # Read into an array so we can scan bottom-up (the most recent status line wins).
   while IFS= read -r line; do
+    lines+=("$line")
+  done <<< "$sample"
+
+  for ((i=${#lines[@]}-1; i>=0; i--)); do
+    line="${lines[$i]}"
     [[ -z "$line" ]] && continue
 
     trimmed="$line"
     trimmed="$(trim_ws "$trimmed")"
 
-    # Drop leading bullets/spinners/prefix glyphs.
-    if [[ "$trimmed" =~ ^[^[:alnum:]]+[[:space:]]+(.+)$ ]]; then
-      trimmed="${BASH_REMATCH[1]}"
-      trimmed="$(trim_ws "$trimmed")"
-    fi
+    trimmed="$(strip_leading_glyphs "$trimmed")"
+    trimmed="$(trim_ws "$trimmed")"
 
     # Codex often prints: "<activity title> (<time> • esc to interrupt)"
     if [[ "$trimmed" =~ $re ]]; then
       candidate="${BASH_REMATCH[1]}"
       candidate="$(trim_ws "$candidate")"
-      [[ -n "$candidate" ]] && title="$candidate"
+      if [[ -n "$candidate" ]]; then
+        title="$candidate"
+        break
+      fi
     fi
-  done <<< "$sample"
+  done
 
   printf '%s' "$title"
 }
@@ -242,13 +287,33 @@ has_allowed_cmd() {
   return 1
 }
 
-line_has_allowed_cmd() {
+provider_from_cmd() {
+  local cmd="$1"
+  [[ -z "$cmd" ]] && return 1
+  local cmd_base="${cmd##*/}"
+  local item
+  for item in "${allowlist_items[@]}"; do
+    [[ -z "$item" ]] && continue
+    if [[ "$cmd_base" == "$item" || "$cmd_base" == "$item"-* ]]; then
+      printf '%s' "$item"
+      return 0
+    fi
+  done
+  return 1
+}
+
+provider_from_ps_line() {
   local line="$1"
   [[ -z "$line" ]] && return 1
   local cmd_token="${line#* }"
   cmd_token="${cmd_token%% *}"
-  local cmd_base="${cmd_token##*/}"
-  has_allowed_cmd "$cmd_token" || has_allowed_cmd "$cmd_base"
+  provider_from_cmd "$cmd_token"
+}
+
+line_has_allowed_cmd() {
+  local line="$1"
+  [[ -z "$line" ]] && return 1
+  provider_from_ps_line "$line" >/dev/null 2>&1
 }
 
 line_matches_pattern() {
@@ -308,6 +373,7 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
   pane_matched=0
   pane_sample_matched=0
   pane_activity_title=""
+  pane_provider=""
   if ((want_details)); then
     matches=()
     child_processes=()
@@ -316,6 +382,7 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
 
     if has_allowed_cmd "$pane_cmd"; then
       pane_matched=1
+      pane_provider="$(provider_from_cmd "$pane_cmd" || true)"
       if ((want_details)); then
         matches+=("current_command: $pane_cmd")
       fi
@@ -324,9 +391,8 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
     proc_name="${pid_comm[$pane_pid]-}"
     proc_cmdline="${pid_cmdline[$pane_pid]-}"
 
-    is_codex_pane=0
-    if [[ "$pane_cmd" == codex* || "$proc_name" == codex* ]]; then
-      is_codex_pane=1
+    if [[ -z "$pane_provider" ]]; then
+      pane_provider="$(provider_from_cmd "$proc_name" || true)"
     fi
 
     if has_allowed_cmd "$proc_name"; then
@@ -348,6 +414,9 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
         while IFS= read -r line; do
           if ! is_self_line "$line" && { line_has_allowed_cmd "$line" || line_matches_pattern "$line"; }; then
             pane_matched=1
+            if [[ -z "$pane_provider" ]]; then
+              pane_provider="$(provider_from_ps_line "$line" 2>/dev/null || true)"
+            fi
             if ((want_details)); then
               child_processes+=("$line")
             fi
@@ -367,6 +436,9 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
             fi
             if line_matches_pattern "$line" || { ((deep == 1)) && line_has_allowed_cmd "$line"; }; then
               pane_matched=1
+              if [[ -z "$pane_provider" ]]; then
+                pane_provider="$(provider_from_ps_line "$line" 2>/dev/null || true)"
+              fi
               if ((want_details)); then
                 tty_matches+=("$line")
               fi
@@ -388,7 +460,7 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
     if ((pane_matched == 1)) && [[ "$pane_id" == %* ]]; then
       pane_sample="$(tmux capture-pane -p -t "$pane_id" -S "-$sample_lines" 2>/dev/null || true)"
       if [[ -n "$pane_sample" ]]; then
-        if ((is_codex_pane == 1)); then
+        if [[ "$pane_provider" == "codex" ]]; then
           pane_activity_title="$(extract_codex_activity_title "$pane_sample")"
           if ((want_details)) && [[ -n "$pane_activity_title" ]]; then
             matches+=("activity_title: $pane_activity_title")
@@ -422,28 +494,7 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
     fi
 
     display_title="$pane_title"
-    if [[ "$display_title" == OC\ \|\ * ]]; then
-      display_title="${display_title#OC | }"
-    fi
-
-    is_claude_pane=0
-    if [[ "$pane_cmd" == "claude" || "$proc_name" == "claude" ]]; then
-      is_claude_pane=1
-    fi
-    if ((is_claude_pane == 1)); then
-      if [[ "$display_title" == Claude\ Code\ \|\ * ]]; then
-        display_title="${display_title#Claude Code | }"
-      elif [[ "$display_title" == Claude\ \|\ * ]]; then
-        display_title="${display_title#Claude | }"
-      fi
-      if [[ "$display_title" =~ ^[^[:alnum:]]+[[:space:]]+(.+)$ ]]; then
-        display_title="${BASH_REMATCH[1]}"
-      fi
-    fi
-
-    if ((is_codex_pane == 1)) && [[ -n "$pane_activity_title" ]]; then
-      display_title="$pane_activity_title"
-    fi
+    display_title="$(normalize_title_for_provider "$pane_provider" "$display_title" "$pane_activity_title")"
 
     if ((json_output)); then
       if ((json_first)); then
@@ -461,6 +512,8 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
       json_field "pane_tty" "$pane_tty"
       json_field "pane_title" "$pane_title"
       json_field "pane_title_display" "$display_title"
+      json_field "provider" "$pane_provider"
+      json_field "activity_title" "$pane_activity_title"
       json_field "pane_current_command" "$pane_cmd"
       json_field "pane_process" "$proc_name"
       json_field "pane_cmdline" "$proc_cmdline"
