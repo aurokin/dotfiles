@@ -222,8 +222,7 @@ Environment:
   TMUX_AGENTS_PATTERN         Regex to identify agent panes (default: "opencode|gemini|codex|claude")
   TMUX_AGENTS_SAMPLE_LINES    Lines to sample from pane (default: 120)
   TMUX_AGENTS_SAMPLE_REGEX    Regex to detect "building" state (default: "esc to cancel|esc to interrupt|esc to stop")
-  TMUX_AGENTS_OPENCODE_SAMPLE_LINES Lines to sample for opencode build detection (default: 25)
-  TMUX_AGENTS_OPENCODE_BUILD_REGEX  Regex to detect "building" for opencode (default: "^[[:space:]]*~[[:space:]]+(Writing|Running|Building|Indexing|Compiling|Installing|Bundling)")
+  TMUX_AGENTS_OPENCODE_SAMPLE_LINES Lines to sample for opencode footer detection (default: 12)
   TMUX_AGENTS_CMD_ALLOWLIST   Command allowlist (default: "opencode,gemini,codex,claude")
 Flags:
   --deep  Run slower process scans (child/tty) for better detection
@@ -355,6 +354,42 @@ if command -v rg >/dev/null 2>&1; then
   rg_available=1
 fi
 
+sample_matches_regex() {
+  local sample="$1"
+  local regex="$2"
+  [[ -z "$sample" || -z "$regex" ]] && return 1
+  if ((rg_available)); then
+    rg -q -i -m 1 -e "$regex" <<<"$sample" >/dev/null 2>&1
+  else
+    grep -q -i -m 1 -E "$regex" <<<"$sample" >/dev/null 2>&1
+  fi
+}
+
+extract_last_line_containing() {
+  local sample="$1"
+  local needle="$2"
+  [[ -z "$sample" || -z "$needle" ]] && return 1
+
+  local line=""
+  local lines=()
+  local i=0
+
+  while IFS= read -r line; do
+    lines+=("$line")
+  done <<< "$sample"
+
+  for ((i=${#lines[@]}-1; i>=0; i--)); do
+    line="${lines[$i]}"
+    [[ -z "$line" ]] && continue
+    if [[ "$line" == *"$needle"* ]]; then
+      printf '%s' "$(trim_ws "$line")"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 declare -A pid_comm
 declare -A pid_cmdline
 declare -A ppid_children
@@ -485,54 +520,44 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
     if ((pane_matched == 1)) && [[ "$pane_id" == %* ]]; then
       pane_sample="$(tmux capture-pane -p -t "$pane_id" -S "-$sample_lines" 2>/dev/null || true)"
       if [[ -n "$pane_sample" ]]; then
-        if [[ "$pane_provider" == "codex" ]]; then
-          pane_activity_title="$(extract_codex_activity_title "$pane_sample")"
-          if ((want_details)) && [[ -n "$pane_activity_title" ]]; then
-            matches+=("activity_title: $pane_activity_title")
-          fi
-          if [[ -n "$pane_activity_title" ]]; then
-            pane_sample_matched=1
-          fi
-        fi
+        case "$pane_provider" in
+          codex)
+            pane_activity_title="$(extract_codex_activity_title "$pane_sample")"
+            if ((want_details)) && [[ -n "$pane_activity_title" ]]; then
+              matches+=("activity_title: $pane_activity_title")
+            fi
+            [[ -n "$pane_activity_title" ]] && pane_sample_matched=1
+            ;;
+          opencode)
+            # opencode: determine "building" from the live footer line near the bottom.
+            # When it is actively working, the footer typically shows filled progress blocks next to "esc interrupt".
+            opencode_sample_lines="${TMUX_AGENTS_OPENCODE_SAMPLE_LINES:-12}"
+            opencode_sample="$(tmux capture-pane -p -t "$pane_id" -S "-$opencode_sample_lines" 2>/dev/null || true)"
 
-        if [[ "$pane_provider" == "opencode" ]]; then
-          opencode_sample_lines="${TMUX_AGENTS_OPENCODE_SAMPLE_LINES:-25}"
-          opencode_sample="$(tmux capture-pane -p -t "$pane_id" -S "-$opencode_sample_lines" 2>/dev/null || true)"
-          opencode_build_regex="${TMUX_AGENTS_OPENCODE_BUILD_REGEX:-^[[:space:]]*~[[:space:]]+(Writing|Running|Building|Indexing|Compiling|Installing|Bundling)}"
-          if ((rg_available)); then
-            if echo "$opencode_sample" | rg -q -i -m 1 -e "$opencode_build_regex" >/dev/null 2>&1; then
-              pane_sample_matched=1
+            # Prefer the footer line (has ctrl+t variants), fallback to any esc interrupt line.
+            opencode_footer="$(extract_last_line_containing "$opencode_sample" "ctrl+t variants" 2>/dev/null || true)"
+            if [[ -z "$opencode_footer" ]]; then
+              opencode_footer="$(extract_last_line_containing "$opencode_sample" "esc interrupt" 2>/dev/null || true)"
+            fi
+
+            if [[ -n "$opencode_footer" ]]; then
+              if [[ "$opencode_footer" == *"esc interrupt"* && "$opencode_footer" == *"■"* ]]; then
+                pane_sample_matched=1
+              fi
               if ((want_details)); then
-                matches+=("opencode_build: matched /$opencode_build_regex/ in last ${opencode_sample_lines} lines")
+                matches+=("opencode_footer: $opencode_footer")
               fi
             fi
-          else
-            if echo "$opencode_sample" | grep -q -i -m 1 -E "$opencode_build_regex" >/dev/null 2>&1; then
-              pane_sample_matched=1
-              if ((want_details)); then
-                matches+=("opencode_build: matched /$opencode_build_regex/ in last ${opencode_sample_lines} lines")
-              fi
-            fi
-          fi
-        fi
-
-        if ((pane_sample_matched == 0)) && [[ "$pane_provider" != "codex" && "$pane_provider" != "opencode" ]]; then
-          if ((rg_available)); then
-            if echo "$pane_sample" | rg -q -i -m 1 -e "$sample_regex" >/dev/null 2>&1; then
+            ;;
+          *)
+            if sample_matches_regex "$pane_sample" "$sample_regex"; then
               pane_sample_matched=1
               if ((want_details)); then
                 matches+=("pane_sample: matched /$sample_regex/ in last ${sample_lines} lines")
               fi
             fi
-          else
-            if echo "$pane_sample" | grep -q -i -m 1 -E "$sample_regex" >/dev/null 2>&1; then
-              pane_sample_matched=1
-              if ((want_details)); then
-                matches+=("pane_sample: matched /$sample_regex/ in last ${sample_lines} lines")
-              fi
-            fi
-          fi
-        fi
+            ;;
+        esac
       fi
     fi
 
