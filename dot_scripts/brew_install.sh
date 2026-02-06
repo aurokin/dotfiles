@@ -22,7 +22,6 @@ brew install ffmpeg
 brew install git
 brew install gh
 brew install glab
-brew install anomalyco/tap/opencode
 brew install steipete/tap/remindctl
 
 brew install zsh
