@@ -22,19 +22,22 @@ IFS="$old_ifs"
 
 declare -A provider_pattern
 declare -A provider_cmd
-declare -A provider_sample_regex
-provider_pattern[opencode]="opencode"
-provider_cmd[opencode]="opencode"
-provider_sample_regex[opencode]="esc interrupt"
-provider_pattern[gemini]="gemini"
-provider_cmd[gemini]="gemini"
-provider_sample_regex[gemini]="esc to cancel"
-provider_pattern[codex]="codex"
-provider_cmd[codex]="codex"
-provider_sample_regex[codex]="esc to cancel|esc to interrupt|esc to stop"
-provider_pattern[claude]="claude"
-provider_cmd[claude]="claude"
-provider_sample_regex[claude]="esc to cancel|esc to interrupt|esc to stop|esc interrupt"
+declare -A provider_sample_parts
+
+register_provider() {
+  local name="$1"
+  local pattern="$2"
+  local cmd="$3"
+  local sample_parts="$4"
+  provider_pattern["$name"]="$pattern"
+  provider_cmd["$name"]="$cmd"
+  provider_sample_parts["$name"]="$sample_parts"
+}
+
+register_provider opencode "opencode" "opencode" "esc interrupt"
+register_provider gemini "gemini" "gemini" "esc to cancel"
+register_provider codex "codex" "codex" "esc to cancel|esc to interrupt|esc to stop"
+register_provider claude "claude" "claude" "esc to cancel|esc to interrupt|esc to stop|esc interrupt"
 
 join_with_delim() {
   local delim="$1"
@@ -55,14 +58,53 @@ join_with_delim() {
 build_patterns=()
 build_allowlist=()
 build_sample_regexes=()
+declare -A seen_providers
+declare -A seen_patterns
+declare -A seen_allowlist
+declare -A seen_sample_parts
+
+trim_ws() {
+  local s="$1"
+  s="${s#"${s%%[![:space:]]*}"}"
+  s="${s%"${s##*[![:space:]]}"}"
+  printf '%s' "$s"
+}
+
 for provider in "${providers[@]}"; do
   [[ -z "$provider" ]] && continue
+  if [[ -n "${seen_providers[$provider]+x}" ]]; then
+    continue
+  fi
+  seen_providers["$provider"]=1
+
   pattern_item="${provider_pattern[$provider]-$provider}"
   cmd_item="${provider_cmd[$provider]-$provider}"
-  sample_item="${provider_sample_regex[$provider]-}"
-  [[ -n "$pattern_item" ]] && build_patterns+=("$pattern_item")
-  [[ -n "$cmd_item" ]] && build_allowlist+=("$cmd_item")
-  [[ -n "$sample_item" ]] && build_sample_regexes+=("$sample_item")
+  sample_item="${provider_sample_parts[$provider]-}"
+
+  if [[ -n "$pattern_item" ]] && [[ -z "${seen_patterns[$pattern_item]+x}" ]]; then
+    build_patterns+=("$pattern_item")
+    seen_patterns["$pattern_item"]=1
+  fi
+  if [[ -n "$cmd_item" ]] && [[ -z "${seen_allowlist[$cmd_item]+x}" ]]; then
+    build_allowlist+=("$cmd_item")
+    seen_allowlist["$cmd_item"]=1
+  fi
+
+  if [[ -n "$sample_item" ]]; then
+    sample_item="$(trim_ws "$sample_item")"
+    sample_item_ifs="$IFS"
+    IFS='|'
+    read -r -a sample_parts <<< "$sample_item"
+    IFS="$sample_item_ifs"
+    for sample_part in "${sample_parts[@]}"; do
+      sample_part="$(trim_ws "$sample_part")"
+      [[ -z "$sample_part" ]] && continue
+      if [[ -z "${seen_sample_parts[$sample_part]+x}" ]]; then
+        build_sample_regexes+=("$sample_part")
+        seen_sample_parts["$sample_part"]=1
+      fi
+    done
+  fi
 done
 
 pattern_default="$(join_with_delim '|' "${build_patterns[@]}")"
@@ -330,7 +372,6 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
     building_emoji="🟢"
     building_bool="false"
     if ((pane_sample_matched == 1)); then
-      building_label="Building"
       building_emoji="🟡"
       building_bool="true"
     fi
