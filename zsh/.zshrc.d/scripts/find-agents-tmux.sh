@@ -224,6 +224,9 @@ Environment:
   TMUX_AGENTS_SAMPLE_REGEX    Regex to detect "building" state (default: "esc to cancel|esc to interrupt|esc to stop")
   TMUX_AGENTS_OPENCODE_SAMPLE_LINES Lines to sample for opencode footer detection (default: 12)
   TMUX_AGENTS_OPENCODE_FOOTER_BUILD_REGEX Regex to detect opencode "building" from footer (default: "^[[:space:]]*[^[:alnum:][:space:]]{2,}[[:space:]]+esc interrupt")
+  TMUX_AGENTS_CLAUDE_SAMPLE_LINES Lines to sample for claude build detection (default: 40)
+  TMUX_AGENTS_CLAUDE_BUILD_REGEX  Regex to detect claude "building" (default: "^[[:space:]]*esc to interrupt[[:space:]]*$")
+  TMUX_AGENTS_GEMINI_BUILD_REGEX  Regex to detect gemini "building" (default: "\(esc to cancel, [0-9]+[smhd]\)")
   TMUX_AGENTS_CMD_ALLOWLIST   Command allowlist (default: "opencode,gemini,codex,claude")
 Flags:
   --deep  Run slower process scans (child/tty) for better detection
@@ -367,6 +370,8 @@ sample_matches_regex() {
 }
 
 opencode_footer_build_regex_default='^[[:space:]]*[^[:alnum:][:space:]]{2,}[[:space:]]+esc interrupt'
+claude_build_regex_default='^[[:space:]]*esc to interrupt[[:space:]]*$'
+gemini_build_regex_default='\(esc to cancel, [0-9]+[smhd]\)'
 
 opencode_footer=""
 opencode_footer_build_regex=""
@@ -385,6 +390,38 @@ opencode_is_building() {
   [[ -z "$opencode_footer" ]] && return 1
 
   sample_matches_regex "$opencode_footer" "$opencode_footer_build_regex"
+}
+
+claude_is_building() {
+  local pane_id="$1"
+  local sample_lines="${TMUX_AGENTS_CLAUDE_SAMPLE_LINES:-40}"
+  local sample
+  sample="$(tmux capture-pane -p -t "$pane_id" -S "-$sample_lines" 2>/dev/null || true)"
+  [[ -z "$sample" ]] && return 1
+
+  local build_regex="${TMUX_AGENTS_CLAUDE_BUILD_REGEX:-$claude_build_regex_default}"
+  sample_matches_regex "$sample" "$build_regex"
+}
+
+gemini_is_building() {
+  local pane_id="$1"
+  local pane_title="$2"
+
+  # Fast path: gemini sets pane title to "Ready" vs "Working".
+  if [[ "$pane_title" == *"Working"* ]]; then
+    return 0
+  fi
+  if [[ "$pane_title" == *"Ready"* ]]; then
+    return 1
+  fi
+
+  local sample_lines="${TMUX_AGENTS_SAMPLE_LINES:-120}"
+  local sample
+  sample="$(tmux capture-pane -p -t "$pane_id" -S "-$sample_lines" 2>/dev/null || true)"
+  [[ -z "$sample" ]] && return 1
+
+  local build_regex="${TMUX_AGENTS_GEMINI_BUILD_REGEX:-$gemini_build_regex_default}"
+  sample_matches_regex "$sample" "$build_regex"
 }
 
 extract_last_line_containing() {
@@ -549,6 +586,22 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
               matches+=("activity_title: $pane_activity_title")
             fi
             [[ -n "$pane_activity_title" ]] && pane_sample_matched=1
+            ;;
+          claude)
+            if claude_is_building "$pane_id"; then
+              pane_sample_matched=1
+              if ((want_details)); then
+                matches+=("claude_build_regex: ${TMUX_AGENTS_CLAUDE_BUILD_REGEX:-$claude_build_regex_default}")
+              fi
+            fi
+            ;;
+          gemini)
+            if gemini_is_building "$pane_id" "$pane_title"; then
+              pane_sample_matched=1
+              if ((want_details)); then
+                matches+=("gemini_build_regex: ${TMUX_AGENTS_GEMINI_BUILD_REGEX:-$gemini_build_regex_default}")
+              fi
+            fi
             ;;
           opencode)
             # opencode: determine "building" from the live footer line near the bottom.
