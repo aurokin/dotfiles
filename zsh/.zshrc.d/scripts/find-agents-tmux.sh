@@ -12,7 +12,7 @@ if ! tmux list-sessions >/dev/null 2>&1; then
   exit 0
 fi
 
-providers_raw="${TMUX_AGENTS_PROVIDERS:-opencode,gemini,codex}"
+providers_raw="${TMUX_AGENTS_PROVIDERS:-opencode,gemini,codex,claude}"
 providers_raw="${providers_raw//,/ }"
 providers=()
 old_ifs="$IFS"
@@ -32,6 +32,9 @@ provider_sample_regex[gemini]="esc to cancel"
 provider_pattern[codex]="codex"
 provider_cmd[codex]="codex"
 provider_sample_regex[codex]="esc to cancel|esc to interrupt|esc to stop"
+provider_pattern[claude]="claude"
+provider_cmd[claude]="claude"
+provider_sample_regex[claude]="esc to cancel|esc to interrupt|esc to stop|esc interrupt"
 
 join_with_delim() {
   local delim="$1"
@@ -67,10 +70,10 @@ cmd_allowlist_default="$(join_with_delim ',' "${build_allowlist[@]}")"
 sample_regex_default="$(join_with_delim '|' "${build_sample_regexes[@]}")"
 
 if [[ -z "$pattern_default" ]]; then
-  pattern_default="opencode|gemini|codex"
+  pattern_default="opencode|gemini|codex|claude"
 fi
 if [[ -z "$cmd_allowlist_default" ]]; then
-  cmd_allowlist_default="opencode,gemini,codex"
+  cmd_allowlist_default="opencode,gemini,codex,claude"
 fi
 if [[ -z "$sample_regex_default" ]]; then
   sample_regex_default="esc interrupt|esc to cancel|esc to interrupt|esc to stop"
@@ -96,11 +99,11 @@ usage() {
 Usage: find-agents-tmux.sh [--json] [--debug] [--deep]
 
 Environment:
-  TMUX_AGENTS_PROVIDERS       Comma or space-separated list (default: "opencode,gemini,codex")
-  TMUX_AGENTS_PATTERN         Regex to identify agent panes (default: "opencode|gemini|codex")
+  TMUX_AGENTS_PROVIDERS       Comma or space-separated list (default: "opencode,gemini,codex,claude")
+  TMUX_AGENTS_PATTERN         Regex to identify agent panes (default: "opencode|gemini|codex|claude")
   TMUX_AGENTS_SAMPLE_LINES    Lines to sample from pane (default: 120)
   TMUX_AGENTS_SAMPLE_REGEX    Regex to detect "building" state (default: "esc interrupt|esc to cancel|esc to interrupt|esc to stop")
-  TMUX_AGENTS_CMD_ALLOWLIST   Command allowlist (default: "opencode,gemini,codex")
+  TMUX_AGENTS_CMD_ALLOWLIST   Command allowlist (default: "opencode,gemini,codex,claude")
 Flags:
   --deep  Run slower process scans (child/tty) for better detection
 USAGE
@@ -335,6 +338,21 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
     display_title="$pane_title"
     if [[ "$display_title" == OC\ \|\ * ]]; then
       display_title="${display_title#OC | }"
+    fi
+
+    is_claude_pane=0
+    if [[ "$pane_cmd" == "claude" || "$proc_name" == "claude" ]]; then
+      is_claude_pane=1
+    fi
+    if ((is_claude_pane == 1)); then
+      if [[ "$display_title" == Claude\ Code\ \|\ * ]]; then
+        display_title="${display_title#Claude Code | }"
+      elif [[ "$display_title" == Claude\ \|\ * ]]; then
+        display_title="${display_title#Claude | }"
+      fi
+      if [[ "$display_title" =~ ^[^[:alnum:]]+[[:space:]]+(.+)$ ]]; then
+        display_title="${BASH_REMATCH[1]}"
+      fi
     fi
 
     if ((json_output)); then
