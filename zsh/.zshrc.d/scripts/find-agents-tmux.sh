@@ -223,7 +223,7 @@ Environment:
   TMUX_AGENTS_SAMPLE_LINES    Lines to sample from pane (default: 120)
   TMUX_AGENTS_SAMPLE_REGEX    Regex to detect "building" state (default: "esc to cancel|esc to interrupt|esc to stop")
   TMUX_AGENTS_OPENCODE_SAMPLE_LINES Lines to sample for opencode footer detection (default: 12)
-  TMUX_AGENTS_OPENCODE_FOOTER_BUILD_REGEX Regex to detect opencode "building" from footer (default: "[■█▓▒].*esc interrupt.*ctrl\\+t variants")
+  TMUX_AGENTS_OPENCODE_FOOTER_BUILD_REGEX Regex to detect opencode "building" from footer (default: "^[[:space:]]*[^[:alnum:][:space:]]{2,}[[:space:]]+esc interrupt")
   TMUX_AGENTS_CMD_ALLOWLIST   Command allowlist (default: "opencode,gemini,codex,claude")
 Flags:
   --deep  Run slower process scans (child/tty) for better detection
@@ -365,6 +365,8 @@ sample_matches_regex() {
     grep -q -i -m 1 -E "$regex" <<<"$sample" >/dev/null 2>&1
   fi
 }
+
+opencode_footer_build_regex_default='^[[:space:]]*[^[:alnum:][:space:]]{2,}[[:space:]]+esc interrupt'
 
 extract_last_line_containing() {
   local sample="$1"
@@ -535,14 +537,10 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
             opencode_sample_lines="${TMUX_AGENTS_OPENCODE_SAMPLE_LINES:-12}"
             opencode_sample="$(tmux capture-pane -p -t "$pane_id" -S "-$opencode_sample_lines" 2>/dev/null || true)"
 
-            # Prefer the footer line (has ctrl+t variants), fallback to any esc interrupt line.
-            opencode_footer="$(extract_last_line_containing "$opencode_sample" "ctrl+t variants" 2>/dev/null || true)"
-            if [[ -z "$opencode_footer" ]]; then
-              opencode_footer="$(extract_last_line_containing "$opencode_sample" "esc interrupt" 2>/dev/null || true)"
-            fi
+            opencode_footer="$(extract_last_line_containing "$opencode_sample" "esc interrupt" 2>/dev/null || true)"
 
             if [[ -n "$opencode_footer" ]]; then
-              opencode_footer_build_regex="${TMUX_AGENTS_OPENCODE_FOOTER_BUILD_REGEX:-[■█▓▒].*esc interrupt.*ctrl\\+t variants}"
+              opencode_footer_build_regex="${TMUX_AGENTS_OPENCODE_FOOTER_BUILD_REGEX:-$opencode_footer_build_regex_default}"
               if sample_matches_regex "$opencode_footer" "$opencode_footer_build_regex"; then
                 pane_sample_matched=1
               fi
