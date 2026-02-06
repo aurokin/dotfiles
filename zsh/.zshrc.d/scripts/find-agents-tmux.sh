@@ -12,7 +12,7 @@ if ! tmux list-sessions >/dev/null 2>&1; then
   exit 0
 fi
 
-providers_raw="${TMUX_AGENTS_PROVIDERS:-opencode,gemini}"
+providers_raw="${TMUX_AGENTS_PROVIDERS:-opencode,gemini,codex}"
 providers_raw="${providers_raw//,/ }"
 providers=()
 old_ifs="$IFS"
@@ -29,6 +29,9 @@ provider_sample_regex[opencode]="esc interrupt"
 provider_pattern[gemini]="gemini"
 provider_cmd[gemini]="gemini"
 provider_sample_regex[gemini]="esc to cancel"
+provider_pattern[codex]="codex"
+provider_cmd[codex]="codex"
+provider_sample_regex[codex]="esc to cancel|esc to interrupt|esc to stop"
 
 join_with_delim() {
   local delim="$1"
@@ -64,13 +67,13 @@ cmd_allowlist_default="$(join_with_delim ',' "${build_allowlist[@]}")"
 sample_regex_default="$(join_with_delim '|' "${build_sample_regexes[@]}")"
 
 if [[ -z "$pattern_default" ]]; then
-  pattern_default="opencode|gemini"
+  pattern_default="opencode|gemini|codex"
 fi
 if [[ -z "$cmd_allowlist_default" ]]; then
-  cmd_allowlist_default="opencode,gemini"
+  cmd_allowlist_default="opencode,gemini,codex"
 fi
 if [[ -z "$sample_regex_default" ]]; then
-  sample_regex_default="esc interrupt|esc to cancel"
+  sample_regex_default="esc interrupt|esc to cancel|esc to interrupt|esc to stop"
 fi
 
 pattern="${TMUX_AGENTS_PATTERN:-$pattern_default}"
@@ -93,11 +96,11 @@ usage() {
 Usage: find-agents-tmux.sh [--json] [--debug] [--deep]
 
 Environment:
-  TMUX_AGENTS_PROVIDERS       Comma or space-separated list (default: "opencode,gemini")
-  TMUX_AGENTS_PATTERN         Regex to identify agent panes (default: "opencode|gemini")
+  TMUX_AGENTS_PROVIDERS       Comma or space-separated list (default: "opencode,gemini,codex")
+  TMUX_AGENTS_PATTERN         Regex to identify agent panes (default: "opencode|gemini|codex")
   TMUX_AGENTS_SAMPLE_LINES    Lines to sample from pane (default: 120)
-  TMUX_AGENTS_SAMPLE_REGEX    Regex to detect "building" state (default: "esc interrupt|esc to cancel")
-  TMUX_AGENTS_CMD_ALLOWLIST   Command allowlist (default: "opencode,gemini")
+  TMUX_AGENTS_SAMPLE_REGEX    Regex to detect "building" state (default: "esc interrupt|esc to cancel|esc to interrupt|esc to stop")
+  TMUX_AGENTS_CMD_ALLOWLIST   Command allowlist (default: "opencode,gemini,codex")
 Flags:
   --deep  Run slower process scans (child/tty) for better detection
 USAGE
