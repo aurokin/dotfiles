@@ -368,6 +368,25 @@ sample_matches_regex() {
 
 opencode_footer_build_regex_default='^[[:space:]]*[^[:alnum:][:space:]]{2,}[[:space:]]+esc interrupt'
 
+opencode_footer=""
+opencode_footer_build_regex=""
+
+opencode_is_building() {
+  local pane_id="$1"
+  opencode_footer=""
+  opencode_footer_build_regex="${TMUX_AGENTS_OPENCODE_FOOTER_BUILD_REGEX:-$opencode_footer_build_regex_default}"
+
+  local sample_lines="${TMUX_AGENTS_OPENCODE_SAMPLE_LINES:-12}"
+  local sample
+  sample="$(tmux capture-pane -p -t "$pane_id" -S "-$sample_lines" 2>/dev/null || true)"
+  [[ -z "$sample" ]] && return 1
+
+  opencode_footer="$(extract_last_line_containing "$sample" "esc interrupt" 2>/dev/null || true)"
+  [[ -z "$opencode_footer" ]] && return 1
+
+  sample_matches_regex "$opencode_footer" "$opencode_footer_build_regex"
+}
+
 extract_last_line_containing() {
   local sample="$1"
   local needle="$2"
@@ -533,21 +552,12 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
             ;;
           opencode)
             # opencode: determine "building" from the live footer line near the bottom.
-            # When it is actively working, the footer typically shows filled progress blocks next to "esc interrupt".
-            opencode_sample_lines="${TMUX_AGENTS_OPENCODE_SAMPLE_LINES:-12}"
-            opencode_sample="$(tmux capture-pane -p -t "$pane_id" -S "-$opencode_sample_lines" 2>/dev/null || true)"
-
-            opencode_footer="$(extract_last_line_containing "$opencode_sample" "esc interrupt" 2>/dev/null || true)"
-
-            if [[ -n "$opencode_footer" ]]; then
-              opencode_footer_build_regex="${TMUX_AGENTS_OPENCODE_FOOTER_BUILD_REGEX:-$opencode_footer_build_regex_default}"
-              if sample_matches_regex "$opencode_footer" "$opencode_footer_build_regex"; then
-                pane_sample_matched=1
-              fi
-              if ((want_details)); then
-                matches+=("opencode_footer: $opencode_footer")
-                matches+=("opencode_footer_build_regex: $opencode_footer_build_regex")
-              fi
+            if opencode_is_building "$pane_id"; then
+              pane_sample_matched=1
+            fi
+            if ((want_details)) && [[ -n "$opencode_footer" ]]; then
+              matches+=("opencode_footer: $opencode_footer")
+              matches+=("opencode_footer_build_regex: $opencode_footer_build_regex")
             fi
             ;;
           *)
