@@ -225,6 +225,7 @@ Environment:
   TMUX_AGENTS_OPENCODE_SAMPLE_LINES Lines to sample for opencode footer detection (default: 12)
   TMUX_AGENTS_OPENCODE_FOOTER_BUILD_REGEX Regex to detect opencode "building" from footer (default: "^[[:space:]]*[^[:alnum:][:space:]]{2,}[[:space:]]+esc interrupt")
   TMUX_AGENTS_CLAUDE_SAMPLE_LINES Lines to sample for claude build detection (default: 40)
+  TMUX_AGENTS_CLAUDE_TITLE_BUILD_REGEX Regex to detect claude "building" from pane title (default: "^[[:space:]]*[braille-spinner][[:space:]]+")
   TMUX_AGENTS_CLAUDE_BUILD_REGEX  Regex to detect claude "building" (default: "^[[:space:]]*esc to interrupt[[:space:]]*$")
   TMUX_AGENTS_GEMINI_BUILD_REGEX  Regex to detect gemini "building" (default: "\(esc to cancel, [0-9]+[smhd]\)")
   TMUX_AGENTS_CMD_ALLOWLIST   Command allowlist (default: "opencode,gemini,codex,claude")
@@ -370,11 +371,17 @@ sample_matches_regex() {
 }
 
 opencode_footer_build_regex_default='^[[:space:]]*[^[:alnum:][:space:]]{2,}[[:space:]]+esc interrupt'
+# Claude Code updates the terminal title while it is running (often a braille spinner prefix).
+# When it is waiting for user input, the title usually switches to a non-spinner marker (e.g. "✳").
+claude_title_build_regex_default='^[[:space:]]*[⠁⠂⠄⡀⢀⠠⠐⠈⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏⣾⣽⣻⢿⡿⣟⣯⣷][[:space:]]+'
 claude_build_regex_default='^[[:space:]]*esc to interrupt[[:space:]]*$'
 gemini_build_regex_default='\(esc to cancel, [0-9]+[smhd]\)'
 
 opencode_footer=""
 opencode_footer_build_regex=""
+
+claude_build_source=""
+claude_build_regex_used=""
 
 opencode_is_building() {
   local pane_id="$1"
@@ -394,13 +401,37 @@ opencode_is_building() {
 
 claude_is_building() {
   local pane_id="$1"
+  local pane_title="${2:-}"
+
+  claude_build_source=""
+  claude_build_regex_used=""
+
+  # Fast path: Claude updates the pane title with a spinner while it is actively running.
+  if [[ -n "$pane_title" ]]; then
+    local title_check
+    title_check="$(strip_known_prefixes "$pane_title")"
+    title_check="$(trim_ws "$title_check")"
+    local title_regex="${TMUX_AGENTS_CLAUDE_TITLE_BUILD_REGEX:-$claude_title_build_regex_default}"
+    if [[ -n "$title_check" ]] && sample_matches_regex "$title_check" "$title_regex"; then
+      claude_build_source="pane_title"
+      claude_build_regex_used="$title_regex"
+      return 0
+    fi
+  fi
+
+  # Fallback: inspect recent pane output for a known "interrupt" line.
   local sample_lines="${TMUX_AGENTS_CLAUDE_SAMPLE_LINES:-40}"
   local sample
   sample="$(tmux capture-pane -p -t "$pane_id" -S "-$sample_lines" 2>/dev/null || true)"
   [[ -z "$sample" ]] && return 1
 
   local build_regex="${TMUX_AGENTS_CLAUDE_BUILD_REGEX:-$claude_build_regex_default}"
-  sample_matches_regex "$sample" "$build_regex"
+  if sample_matches_regex "$sample" "$build_regex"; then
+    claude_build_source="pane_sample"
+    claude_build_regex_used="$build_regex"
+    return 0
+  fi
+  return 1
 }
 
 gemini_is_building() {
@@ -588,10 +619,11 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
             [[ -n "$pane_activity_title" ]] && pane_sample_matched=1
             ;;
           claude)
-            if claude_is_building "$pane_id"; then
+            if claude_is_building "$pane_id" "$pane_title"; then
               pane_sample_matched=1
               if ((want_details)); then
-                matches+=("claude_build_regex: ${TMUX_AGENTS_CLAUDE_BUILD_REGEX:-$claude_build_regex_default}")
+                [[ -n "${claude_build_source:-}" ]] && matches+=("claude_build_source: ${claude_build_source}")
+                [[ -n "${claude_build_regex_used:-}" ]] && matches+=("claude_build_regex: ${claude_build_regex_used}")
               fi
             fi
             ;;
