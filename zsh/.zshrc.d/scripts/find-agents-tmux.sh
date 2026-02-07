@@ -251,6 +251,11 @@ if ((json_output || debug)); then
   want_details=1
 fi
 
+add_match() {
+  ((want_details)) || return 0
+  matches+=("$1")
+}
+
 json_escape() {
   local s="$1"
   s="${s//\\/\\\\}"
@@ -328,6 +333,24 @@ provider_from_text() {
   return 1
 }
 
+provider_from_pane_title() {
+  local title="$1"
+  [[ -z "$title" ]] && return 1
+  case "$title" in
+    'OC | '*)
+      [[ -n "${seen_providers[opencode]+x}" ]] || return 1
+      printf '%s' opencode
+      return 0
+      ;;
+    'Claude Code | '*|'Claude | '*)
+      [[ -n "${seen_providers[claude]+x}" ]] || return 1
+      printf '%s' claude
+      return 0
+      ;;
+  esac
+  return 1
+}
+
 provider_from_ps_line() {
   local line="$1"
   [[ -z "$line" ]] && return 1
@@ -377,66 +400,77 @@ claude_title_build_regex_default='^[[:space:]]*[⠁⠂⠄⡀⢀⠠⠐⠈⠋⠙�
 claude_build_regex_default='^[[:space:]]*esc to interrupt[[:space:]]*$'
 gemini_build_regex_default='\(esc to cancel, [0-9]+[smhd]\)'
 
-opencode_footer=""
-opencode_footer_build_regex=""
-
-claude_build_source=""
-claude_build_regex_used=""
-
-opencode_is_building() {
+capture_pane_sample() {
   local pane_id="$1"
-  opencode_footer=""
-  opencode_footer_build_regex="${TMUX_AGENTS_OPENCODE_FOOTER_BUILD_REGEX:-$opencode_footer_build_regex_default}"
-
-  local sample_lines="${TMUX_AGENTS_OPENCODE_SAMPLE_LINES:-12}"
-  local sample
-  sample="$(tmux capture-pane -p -t "$pane_id" -S "-$sample_lines" 2>/dev/null || true)"
-  [[ -z "$sample" ]] && return 1
-
-  opencode_footer="$(extract_last_line_containing "$sample" "esc interrupt" 2>/dev/null || true)"
-  [[ -z "$opencode_footer" ]] && return 1
-
-  sample_matches_regex "$opencode_footer" "$opencode_footer_build_regex"
+  local lines="$2"
+  [[ -z "$pane_id" || -z "$lines" ]] && return 1
+  tmux capture-pane -p -t "$pane_id" -S "-$lines" 2>/dev/null || true
 }
 
-claude_is_building() {
-  local pane_id="$1"
-  local pane_title="${2:-}"
+opencode_is_building_from_sample() {
+  local sample="$1"
+  local footer_out_var="${2:-}"
+  local regex_out_var="${3:-}"
 
-  claude_build_source=""
-  claude_build_regex_used=""
+  [[ -z "$sample" ]] && return 1
 
-  # Fast path: Claude updates the pane title with a spinner while it is actively running.
+  local footer=""
+  local build_regex="${TMUX_AGENTS_OPENCODE_FOOTER_BUILD_REGEX:-$opencode_footer_build_regex_default}"
+  footer="$(extract_last_line_containing "$sample" "esc interrupt" 2>/dev/null || true)"
+
+  [[ -n "$footer_out_var" ]] && printf -v "$footer_out_var" '%s' "$footer"
+  [[ -n "$regex_out_var" ]] && printf -v "$regex_out_var" '%s' "$build_regex"
+
+  [[ -z "$footer" ]] && return 1
+  sample_matches_regex "$footer" "$build_regex"
+}
+
+claude_is_building_from_title_and_sample() {
+  local pane_title="${1:-}"
+  local sample="${2:-}"
+  local source_out_var="${3:-}"
+  local regex_out_var="${4:-}"
+
+  local source=""
+  local regex_used=""
+
+  local title_regex="${TMUX_AGENTS_CLAUDE_TITLE_BUILD_REGEX:-$claude_title_build_regex_default}"
   if [[ -n "$pane_title" ]]; then
     local title_check
     title_check="$(strip_known_prefixes "$pane_title")"
     title_check="$(trim_ws "$title_check")"
-    local title_regex="${TMUX_AGENTS_CLAUDE_TITLE_BUILD_REGEX:-$claude_title_build_regex_default}"
     if [[ -n "$title_check" ]] && sample_matches_regex "$title_check" "$title_regex"; then
-      claude_build_source="pane_title"
-      claude_build_regex_used="$title_regex"
+      source="pane_title"
+      regex_used="$title_regex"
+      [[ -n "$source_out_var" ]] && printf -v "$source_out_var" '%s' "$source"
+      [[ -n "$regex_out_var" ]] && printf -v "$regex_out_var" '%s' "$regex_used"
       return 0
     fi
   fi
 
-  # Fallback: inspect recent pane output for a known "interrupt" line.
-  local sample_lines="${TMUX_AGENTS_CLAUDE_SAMPLE_LINES:-40}"
-  local sample
-  sample="$(tmux capture-pane -p -t "$pane_id" -S "-$sample_lines" 2>/dev/null || true)"
-  [[ -z "$sample" ]] && return 1
-
-  local build_regex="${TMUX_AGENTS_CLAUDE_BUILD_REGEX:-$claude_build_regex_default}"
-  if sample_matches_regex "$sample" "$build_regex"; then
-    claude_build_source="pane_sample"
-    claude_build_regex_used="$build_regex"
-    return 0
+  if [[ -n "$sample" ]]; then
+    local build_regex="${TMUX_AGENTS_CLAUDE_BUILD_REGEX:-$claude_build_regex_default}"
+    if sample_matches_regex "$sample" "$build_regex"; then
+      source="pane_sample"
+      regex_used="$build_regex"
+      [[ -n "$source_out_var" ]] && printf -v "$source_out_var" '%s' "$source"
+      [[ -n "$regex_out_var" ]] && printf -v "$regex_out_var" '%s' "$regex_used"
+      return 0
+    fi
   fi
+
+  [[ -n "$source_out_var" ]] && printf -v "$source_out_var" '%s' ""
+  [[ -n "$regex_out_var" ]] && printf -v "$regex_out_var" '%s' ""
   return 1
 }
 
-gemini_is_building() {
-  local pane_id="$1"
-  local pane_title="$2"
+gemini_is_building_from_title_and_sample() {
+  local pane_title="$1"
+  local sample="${2:-}"
+  local regex_out_var="${3:-}"
+
+  local build_regex="${TMUX_AGENTS_GEMINI_BUILD_REGEX:-$gemini_build_regex_default}"
+  [[ -n "$regex_out_var" ]] && printf -v "$regex_out_var" '%s' "$build_regex"
 
   # Fast path: gemini sets pane title to "Ready" vs "Working".
   if [[ "$pane_title" == *"Working"* ]]; then
@@ -446,12 +480,7 @@ gemini_is_building() {
     return 1
   fi
 
-  local sample_lines="${TMUX_AGENTS_SAMPLE_LINES:-120}"
-  local sample
-  sample="$(tmux capture-pane -p -t "$pane_id" -S "-$sample_lines" 2>/dev/null || true)"
   [[ -z "$sample" ]] && return 1
-
-  local build_regex="${TMUX_AGENTS_GEMINI_BUILD_REGEX:-$gemini_build_regex_default}"
   sample_matches_regex "$sample" "$build_regex"
 }
 
@@ -484,31 +513,67 @@ declare -A pid_comm
 declare -A pid_cmdline
 declare -A ppid_children
 declare -A tty_process_map
+ps_data_loaded=0
 
-while IFS=$' \t' read -r pid ppid tty comm cmdline; do
-  [[ -z "$pid" ]] && continue
+ensure_ps_data() {
+  local panes_blob="${1:-}"
+  ((ps_data_loaded)) && return 0
+  ps_data_loaded=1
 
-  pid_comm["$pid"]="$comm"
-  pid_cmdline["$pid"]="$cmdline"
+  [[ -z "$panes_blob" ]] && return 0
 
-  proc_line="$pid ${cmdline:-$comm}"
+  local -A wanted_pids=()
+  local -A wanted_ttys=()
 
-  if ((deep == 1)) && [[ -n "$ppid" ]]; then
-    if [[ -n "${ppid_children[$ppid]+x}" ]]; then
-      ppid_children["$ppid"]+=$'\n'"$proc_line"
-    else
-      ppid_children["$ppid"]="$proc_line"
+  local session=""
+  local win_idx=""
+  local pane_idx=""
+  local pane_id=""
+  local pane_pid=""
+  local pane_cmd=""
+  local pane_title=""
+  local pane_tty=""
+  local tty_short=""
+
+  while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_title pane_tty; do
+    [[ -n "$pane_pid" ]] && wanted_pids["$pane_pid"]=1
+    tty_short="${pane_tty#/dev/}"
+    [[ -n "$tty_short" ]] && wanted_ttys["$tty_short"]=1
+  done <<< "$panes_blob"
+
+  local pid=""
+  local ppid=""
+  local tty=""
+  local comm=""
+  local cmdline=""
+  local proc_line=""
+  while IFS=$' \t' read -r pid ppid tty comm cmdline; do
+    [[ -z "$pid" ]] && continue
+
+    proc_line="$pid ${cmdline:-$comm}"
+
+    if [[ -n "${wanted_pids[$pid]+x}" ]]; then
+      pid_comm["$pid"]="$comm"
+      pid_cmdline["$pid"]="$cmdline"
     fi
-  fi
 
-  if [[ -n "$tty" ]]; then
-    if [[ -n "${tty_process_map[$tty]+x}" ]]; then
-      tty_process_map["$tty"]+=$'\n'"$proc_line"
-    else
-      tty_process_map["$tty"]="$proc_line"
+    if [[ -n "$tty" && -n "${wanted_ttys[$tty]+x}" ]]; then
+      if [[ -n "${tty_process_map[$tty]+x}" ]]; then
+        tty_process_map["$tty"]+=$'\n'"$proc_line"
+      else
+        tty_process_map["$tty"]="$proc_line"
+      fi
     fi
-  fi
-done < <(ps -axo pid=,ppid=,tty=,comm=,command= 2>/dev/null || true)
+
+    if ((deep == 1)) && [[ -n "$ppid" && -n "${wanted_pids[$ppid]+x}" ]]; then
+      if [[ -n "${ppid_children[$ppid]+x}" ]]; then
+        ppid_children["$ppid"]+=$'\n'"$proc_line"
+      else
+        ppid_children["$ppid"]="$proc_line"
+      fi
+    fi
+  done < <(ps -axo pid=,ppid=,tty=,comm=,command= 2>/dev/null || true)
+}
 
 pane_lines="$(tmux list-panes -a -F $'#{session_name}\t#{window_index}\t#{pane_index}\t#{pane_id}\t#{pane_pid}\t#{pane_current_command}\t#{pane_title}\t#{pane_tty}' 2>/dev/null || true)"
 if [[ -z "$pane_lines" ]]; then
@@ -516,152 +581,180 @@ if [[ -z "$pane_lines" ]]; then
   exit 0
 fi
 
+if ((want_details || deep)); then
+  ensure_ps_data "$pane_lines"
+fi
+
 while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_title pane_tty; do
   pane_matched=0
-  pane_sample_matched=0
+  pane_building=0
   pane_activity_title=""
   pane_provider=""
+  proc_name=""
+  proc_cmdline=""
   if ((want_details)); then
     matches=()
     child_processes=()
     tty_matches=()
   fi
 
-    if has_allowed_cmd "$pane_cmd"; then
-      pane_matched=1
-      pane_provider="$(provider_from_cmd "$pane_cmd" || true)"
-      if ((want_details)); then
-        matches+=("current_command: $pane_cmd")
-      fi
-    fi
+  if has_allowed_cmd "$pane_cmd"; then
+    pane_matched=1
+    pane_provider="$(provider_from_cmd "$pane_cmd" || true)"
+    add_match "current_command: $pane_cmd"
+  fi
 
+  if ((pane_matched == 0)); then
+    pane_provider="$(provider_from_pane_title "$pane_title" 2>/dev/null || true)"
+    if [[ -n "$pane_provider" ]]; then
+      pane_matched=1
+      add_match "pane_title: $pane_title"
+    fi
+  fi
+
+  if ((pane_matched == 0)); then
+    ensure_ps_data "$pane_lines"
+  fi
+  if ((ps_data_loaded == 1)); then
     proc_name="${pid_comm[$pane_pid]-}"
     proc_cmdline="${pid_cmdline[$pane_pid]-}"
+  fi
 
+  if [[ -z "$pane_provider" ]]; then
+    pane_provider="$(provider_from_cmd "$proc_name" || true)"
+  fi
+
+  if has_allowed_cmd "$proc_name"; then
+    pane_matched=1
+    add_match "pane_process: $proc_name"
+  fi
+  if [[ -n "$proc_cmdline" ]] && [[ "$proc_cmdline" =~ $pattern ]]; then
+    pane_matched=1
     if [[ -z "$pane_provider" ]]; then
-      pane_provider="$(provider_from_cmd "$proc_name" || true)"
+      pane_provider="$(provider_from_text "$proc_cmdline" || true)"
     fi
+    add_match "pane_cmdline: $proc_cmdline"
+  fi
 
-    if has_allowed_cmd "$proc_name"; then
-      pane_matched=1
-      if ((want_details)); then
-        matches+=("pane_process: $proc_name")
-      fi
+  if ((deep == 1)); then
+    child_blob="${ppid_children[$pane_pid]-}"
+    if [[ -n "$child_blob" ]]; then
+      while IFS= read -r line; do
+        if ! is_self_line "$line" && { line_has_allowed_cmd "$line" || line_matches_pattern "$line"; }; then
+          pane_matched=1
+          if [[ -z "$pane_provider" ]]; then
+            pane_provider="$(provider_from_ps_line "$line" 2>/dev/null || true)"
+          fi
+          ((want_details)) && child_processes+=("$line")
+        fi
+      done <<< "$child_blob"
     fi
-    if [[ -n "$proc_cmdline" ]] && [[ "$proc_cmdline" =~ $pattern ]]; then
-      pane_matched=1
-      if [[ -z "$pane_provider" ]]; then
-        pane_provider="$(provider_from_text "$proc_cmdline" || true)"
-      fi
-      if ((want_details)); then
-        matches+=("pane_cmdline: $proc_cmdline")
-      fi
-    fi
+  fi
 
-    if ((deep == 1)); then
-      child_blob="${ppid_children[$pane_pid]-}"
-      if [[ -n "$child_blob" ]]; then
+  if ! ((pane_matched == 1 && deep == 0 && want_details == 0)); then
+    tty_short="${pane_tty#/dev/}"
+    if [[ -n "$tty_short" ]]; then
+      tty_blob="${tty_process_map[$tty_short]-}"
+      if [[ -n "$tty_blob" ]]; then
         while IFS= read -r line; do
-          if ! is_self_line "$line" && { line_has_allowed_cmd "$line" || line_matches_pattern "$line"; }; then
+          if is_self_line "$line"; then
+            continue
+          fi
+          if line_matches_pattern "$line" || { ((deep == 1)) && line_has_allowed_cmd "$line"; }; then
             pane_matched=1
             if [[ -z "$pane_provider" ]]; then
               pane_provider="$(provider_from_ps_line "$line" 2>/dev/null || true)"
             fi
-            if ((want_details)); then
-              child_processes+=("$line")
-            fi
+            ((want_details)) && tty_matches+=("$line")
           fi
-        done <<< "$child_blob"
+        done <<< "$tty_blob"
       fi
     fi
+  fi
 
-    if ! ((pane_matched == 1 && deep == 0)); then
-      tty_short="${pane_tty#/dev/}"
-      if [[ -n "$tty_short" ]]; then
-        tty_blob="${tty_process_map[$tty_short]-}"
-        if [[ -n "$tty_blob" ]]; then
-          while IFS= read -r line; do
-            if is_self_line "$line"; then
-              continue
-            fi
-            if line_matches_pattern "$line" || { ((deep == 1)) && line_has_allowed_cmd "$line"; }; then
-              pane_matched=1
-              if [[ -z "$pane_provider" ]]; then
-                pane_provider="$(provider_from_ps_line "$line" 2>/dev/null || true)"
-              fi
-              if ((want_details)); then
-                tty_matches+=("$line")
-              fi
-            fi
-          done <<< "$tty_blob"
+  if ((want_details)); then
+    for line in "${child_processes[@]}"; do
+      add_match "child_process: $line"
+    done
+    for line in "${tty_matches[@]}"; do
+      add_match "tty_process: $line"
+    done
+  fi
+
+  if ((pane_matched == 1)) && [[ "$pane_id" == %* ]]; then
+    pane_sample=""
+    case "$pane_provider" in
+      codex)
+        pane_sample="$(capture_pane_sample "$pane_id" "$sample_lines")"
+        if [[ -n "$pane_sample" ]]; then
+          pane_activity_title="$(extract_codex_activity_title "$pane_sample")"
+          if [[ -n "$pane_activity_title" ]]; then
+            pane_building=1
+            add_match "activity_title: $pane_activity_title"
+          fi
         fi
-      fi
-    fi
-
-    if ((want_details)); then
-      for line in "${child_processes[@]}"; do
-        matches+=("child_process: $line")
-      done
-      for line in "${tty_matches[@]}"; do
-        matches+=("tty_process: $line")
-      done
-    fi
-
-    if ((pane_matched == 1)) && [[ "$pane_id" == %* ]]; then
-      pane_sample="$(tmux capture-pane -p -t "$pane_id" -S "-$sample_lines" 2>/dev/null || true)"
-      if [[ -n "$pane_sample" ]]; then
-        case "$pane_provider" in
-          codex)
-            pane_activity_title="$(extract_codex_activity_title "$pane_sample")"
-            if ((want_details)) && [[ -n "$pane_activity_title" ]]; then
-              matches+=("activity_title: $pane_activity_title")
-            fi
-            [[ -n "$pane_activity_title" ]] && pane_sample_matched=1
-            ;;
-          claude)
-            if claude_is_building "$pane_id" "$pane_title"; then
-              pane_sample_matched=1
-              if ((want_details)); then
-                [[ -n "${claude_build_source:-}" ]] && matches+=("claude_build_source: ${claude_build_source}")
-                [[ -n "${claude_build_regex_used:-}" ]] && matches+=("claude_build_regex: ${claude_build_regex_used}")
-              fi
-            fi
-            ;;
-          gemini)
-            if gemini_is_building "$pane_id" "$pane_title"; then
-              pane_sample_matched=1
-              if ((want_details)); then
-                matches+=("gemini_build_regex: ${TMUX_AGENTS_GEMINI_BUILD_REGEX:-$gemini_build_regex_default}")
-              fi
-            fi
-            ;;
-          opencode)
-            # opencode: determine "building" from the live footer line near the bottom.
-            if opencode_is_building "$pane_id"; then
-              pane_sample_matched=1
-            fi
-            if ((want_details)) && [[ -n "$opencode_footer" ]]; then
-              matches+=("opencode_footer: $opencode_footer")
-              matches+=("opencode_footer_build_regex: $opencode_footer_build_regex")
-            fi
-            ;;
-          *)
-            if sample_matches_regex "$pane_sample" "$sample_regex"; then
-              pane_sample_matched=1
-              if ((want_details)); then
-                matches+=("pane_sample: matched /$sample_regex/ in last ${sample_lines} lines")
-              fi
-            fi
-            ;;
-        esac
-      fi
-    fi
+        ;;
+      claude)
+        claude_source=""
+        claude_regex=""
+        if claude_is_building_from_title_and_sample "$pane_title" "" claude_source claude_regex; then
+          pane_building=1
+        else
+          claude_sample_lines="${TMUX_AGENTS_CLAUDE_SAMPLE_LINES:-40}"
+          pane_sample="$(capture_pane_sample "$pane_id" "$claude_sample_lines")"
+          if [[ -n "$pane_sample" ]] && claude_is_building_from_title_and_sample "$pane_title" "$pane_sample" claude_source claude_regex; then
+            pane_building=1
+          fi
+        fi
+        if [[ -n "$claude_regex" ]]; then
+          add_match "claude_build_source: $claude_source"
+          add_match "claude_build_regex: $claude_regex"
+        fi
+        ;;
+      gemini)
+        if [[ "$pane_title" == *"Working"* ]]; then
+          pane_building=1
+        elif [[ "$pane_title" == *"Ready"* ]]; then
+          :
+        else
+          gemini_regex=""
+          pane_sample="$(capture_pane_sample "$pane_id" "$sample_lines")"
+          if [[ -n "$pane_sample" ]] && gemini_is_building_from_title_and_sample "$pane_title" "$pane_sample" gemini_regex; then
+            pane_building=1
+          fi
+          if ((pane_building == 1)) && [[ -n "$gemini_regex" ]]; then
+            add_match "gemini_build_regex: $gemini_regex"
+          fi
+        fi
+        ;;
+      opencode)
+        opencode_footer=""
+        opencode_regex=""
+        opencode_sample_lines="${TMUX_AGENTS_OPENCODE_SAMPLE_LINES:-12}"
+        pane_sample="$(capture_pane_sample "$pane_id" "$opencode_sample_lines")"
+        if [[ -n "$pane_sample" ]] && opencode_is_building_from_sample "$pane_sample" opencode_footer opencode_regex; then
+          pane_building=1
+        fi
+        if [[ -n "$opencode_footer" ]]; then
+          add_match "opencode_footer: $opencode_footer"
+          add_match "opencode_footer_build_regex: $opencode_regex"
+        fi
+        ;;
+      *)
+        pane_sample="$(capture_pane_sample "$pane_id" "$sample_lines")"
+        if [[ -n "$pane_sample" ]] && sample_matches_regex "$pane_sample" "$sample_regex"; then
+          pane_building=1
+          add_match "pane_sample: matched /$sample_regex/ in last ${sample_lines} lines"
+        fi
+        ;;
+    esac
+  fi
 
   if ((pane_matched == 1)); then
     found=1
     building_emoji="🟢"
     building_bool="false"
-    if ((pane_sample_matched == 1)); then
+    if ((pane_building == 1)); then
       building_emoji="🟡"
       building_bool="true"
     fi
