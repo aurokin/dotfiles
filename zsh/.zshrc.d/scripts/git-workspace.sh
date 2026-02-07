@@ -4,6 +4,34 @@ IFS=$'\n\t'
 
 script_name="$(basename "$0")"
 
+# Return codes (used for pull job summarization).
+readonly RC_OK=0
+readonly RC_FAIL=2
+readonly RC_FAIL_ARGS=3
+readonly RC_SKIP_DETACHED=10
+readonly RC_SKIP_DIRTY=11
+readonly RC_SKIP_NO_REMOTE=12
+readonly RC_SKIP_UP_TO_DATE=13
+
+# Parallel worker pool state.
+POOL_JOBS=1
+POOL_SUPPORTS_N=0
+POOL_RUNNING=0
+POOL_PIDS=()
+
+HAVE_FLOCK=0
+if command -v flock >/dev/null 2>&1; then
+  HAVE_FLOCK=1
+fi
+
+WARNED_NO_FLOCK=0
+warn_no_flock_parallel() {
+  ((HAVE_FLOCK)) && return 0
+  ((WARNED_NO_FLOCK)) && return 0
+  echo "$script_name: WARN: 'flock' not found; running without repo locks (install util-linux to enable locking)" >&2
+  WARNED_NO_FLOCK=1
+}
+
 # Temp directories to clean up on exit.
 CLEANUP_DIRS=()
 
@@ -28,6 +56,10 @@ Environment:
   GIT_WORKSPACE_JOBS  Default for --jobs (default: min(CPU, 8))
   GIT_WORKSPACE_CACHE_DIR  Cache dir (default: $XDG_CACHE_HOME/git-workspace or ~/.cache/git-workspace)
   GIT_WORKSPACE_FETCH_TTL_SECONDS  Treat remote as fresh for N seconds after a successful fetch (default: 120)
+
+Notes:
+  - If available, uses "flock" (util-linux) to lock git operations per repo
+    (helps avoid ref lock races when scanning multiple worktrees in parallel).
 
 Scans:
   - <path> (default: .)
@@ -200,23 +232,6 @@ compare_ref_for_repo() {
   return 1
 }
 
-fetch_remote_for_repo() {
-  local repo="$1"
-  local upstream="$2"
-
-  if [[ -n "$upstream" ]]; then
-    printf '%s' "${upstream%%/*}"
-    return 0
-  fi
-
-  if git_remote_exists "$repo" origin; then
-    printf '%s' "origin"
-    return 0
-  fi
-
-  return 1
-}
-
 mktemp_dir() {
   local d
   d="$(mktemp -d 2>/dev/null)" && { printf '%s' "$d"; return 0; }
@@ -307,6 +322,44 @@ cache_is_fresh() {
   ((age <= ttl))
 }
 
+repo_lockfile() {
+  local repo="$1"
+  local key_source="$repo"
+
+  local common=""
+  common="$(git -C "$repo" rev-parse --git-common-dir 2>/dev/null || true)"
+  if [[ -n "$common" ]]; then
+    if [[ "$common" == /* ]]; then
+      key_source="$common"
+    else
+      local common_abs=""
+      common_abs="$(abs_dir "$repo/$common" 2>/dev/null || true)"
+      [[ -n "$common_abs" ]] && key_source="$common_abs"
+    fi
+  fi
+
+  local root
+  root="$(cache_root)"
+  printf '%s/locks/%s.lock' "$root" "$(cache_key "$key_source")"
+}
+
+lock_run() {
+  local repo="$1"
+  shift
+
+  if ((HAVE_FLOCK == 0)); then
+    "$@"
+    return $?
+  fi
+
+  local lockfile
+  lockfile="$(repo_lockfile "$repo")"
+  local lockdir="${lockfile%/*}"
+  mkdir -p "$lockdir" 2>/dev/null || true
+
+  flock "$lockfile" "$@"
+}
+
 cpu_count() {
   if command -v nproc >/dev/null 2>&1; then
     nproc
@@ -343,6 +396,52 @@ supports_wait_n() {
   ((major > 4)) || { ((major == 4)) && ((minor >= 3)); }
 }
 
+pool_setup() {
+  local jobs="$1"
+  POOL_JOBS="$jobs"
+  POOL_RUNNING=0
+  POOL_PIDS=()
+  POOL_SUPPORTS_N=0
+  if supports_wait_n; then
+    POOL_SUPPORTS_N=1
+  fi
+}
+
+pool_throttle() {
+  local pid="${1:-}"
+
+  if ((POOL_SUPPORTS_N)); then
+    ((++POOL_RUNNING))
+    if ((POOL_RUNNING >= POOL_JOBS)); then
+      wait -n || true
+      POOL_RUNNING=$((POOL_RUNNING - 1))
+    fi
+    return 0
+  fi
+
+  [[ -n "$pid" ]] || die "internal: pool_throttle missing pid"
+  POOL_PIDS+=("$pid")
+  if ((${#POOL_PIDS[@]} >= POOL_JOBS)); then
+    wait "${POOL_PIDS[0]}" || true
+    POOL_PIDS=("${POOL_PIDS[@]:1}")
+  fi
+}
+
+pool_wait_all() {
+  if ((POOL_SUPPORTS_N)); then
+    while ((POOL_RUNNING > 0)); do
+      wait -n || true
+      POOL_RUNNING=$((POOL_RUNNING - 1))
+    done
+    return 0
+  fi
+
+  local pid
+  for pid in "${POOL_PIDS[@]}"; do
+    wait "$pid" || true
+  done
+}
+
 status_row_tsv() {
   local repo="$1"
   local fetch_enabled="$2"
@@ -355,18 +454,31 @@ status_row_tsv() {
     return 0
   fi
 
-  local fetch_remote=""
-  fetch_remote="$(fetch_remote_for_repo "$repo" "$POR_UPSTREAM" 2>/dev/null || true)"
   local fetch_status=""
-  if ((fetch_enabled)) && [[ -n "$fetch_remote" ]]; then
-    # These defaults avoid slow recursive submodule fetches and tag downloads.
-    local err=""
-    if ! err="$(git -C "$repo" fetch --prune --quiet --no-tags --recurse-submodules=no "$fetch_remote" 2>&1)"; then
-      fetch_status="fetch-error"
-    else
-      cache_write_fetch_time "$repo" >/dev/null 2>&1 || true
-      # Refresh branch.ab after fetch.
-      collect_porcelain "$repo" >/dev/null 2>&1 || true
+  local fetched=0
+  if ((fetch_enabled)); then
+    local fetch_remote=""
+    local fetch_branch=""
+
+    # Targeted fetch: only the tracked branch.
+    if [[ -n "$POR_UPSTREAM" ]]; then
+      fetch_remote="${POR_UPSTREAM%%/*}"
+      fetch_branch="${POR_UPSTREAM#*/}"
+    elif [[ -n "$POR_BRANCH_HEAD" && "$POR_BRANCH_HEAD" != "(detached)" ]] && git_remote_exists "$repo" origin; then
+      fetch_remote="origin"
+      fetch_branch="$POR_BRANCH_HEAD"
+    fi
+
+    if [[ -n "$fetch_remote" && -n "$fetch_branch" ]]; then
+      # These defaults avoid slow recursive submodule fetches and tag downloads.
+      local refspec="+refs/heads/$fetch_branch:refs/remotes/$fetch_remote/$fetch_branch"
+      local err=""
+      if ! err="$(lock_run "$repo" git -C "$repo" fetch --prune --quiet --no-tags --recurse-submodules=no "$fetch_remote" "$refspec" 2>&1)"; then
+        fetch_status="fetch-error"
+      else
+        fetched=1
+        cache_write_fetch_time "$repo" >/dev/null 2>&1 || true
+      fi
     fi
   fi
 
@@ -389,7 +501,7 @@ status_row_tsv() {
     local behind=""
     local ab=""
 
-    if [[ -n "$POR_UPSTREAM" && "$compare_ref" == "$POR_UPSTREAM" && -n "$POR_AB_AHEAD" && -n "$POR_AB_BEHIND" ]]; then
+    if ((fetched == 0)) && [[ -n "$POR_UPSTREAM" && "$compare_ref" == "$POR_UPSTREAM" && -n "$POR_AB_AHEAD" && -n "$POR_AB_BEHIND" ]]; then
       ahead="$POR_AB_AHEAD"
       behind="$POR_AB_BEHIND"
     else
@@ -458,20 +570,20 @@ pull_job() {
   if ! collect_porcelain "$repo"; then
     echo "==> $display_path"
     echo "FAIL: status-error"
-    return 2
+    return $RC_FAIL
   fi
 
   if [[ "$POR_BRANCH_HEAD" == "(detached)" ]]; then
     echo "==> $display_path (detached)"
     echo "SKIP: detached HEAD"
-    return 10
+    return $RC_SKIP_DETACHED
   fi
 
   local dirty_total=$((POR_STAGED + POR_UNSTAGED + POR_UNTRACKED + POR_CONFLICTS))
   if ((include_dirty == 0 && dirty_total > 0)); then
     echo "==> $display_path ($POR_BRANCH_HEAD)"
     echo "SKIP: dirty (w:${POR_UNSTAGED} s:${POR_STAGED} u:${POR_UNTRACKED} c:${POR_CONFLICTS})"
-    return 11
+    return $RC_SKIP_DIRTY
   fi
 
   local compare_ref=""
@@ -497,12 +609,12 @@ pull_job() {
       if [[ "$behind" == "0" ]]; then
         echo "==> $display_path ($POR_BRANCH_HEAD)"
         echo "SKIP: up-to-date"
-        return 13
+        return $RC_SKIP_UP_TO_DATE
       fi
 
       if ((ff_only == 1)) && [[ ${#extra_pull_args[@]} -eq 0 ]]; then
         echo "==> $display_path ($POR_BRANCH_HEAD)"
-        git -C "$repo" merge --ff-only "$compare_ref"
+        lock_run "$repo" git -C "$repo" merge --ff-only "$compare_ref"
         return $?
       fi
     fi
@@ -513,17 +625,17 @@ pull_job() {
     if ((ff_only == 0)); then
       echo "==> $display_path ($POR_BRANCH_HEAD)"
       echo "FAIL: --no-fetch requires --ff-only"
-      return 3
+      return $RC_FAIL_ARGS
     fi
     if [[ ${#extra_pull_args[@]} -gt 0 ]]; then
       echo "==> $display_path ($POR_BRANCH_HEAD)"
       echo "FAIL: --no-fetch does not accept extra git pull args"
-      return 3
+      return $RC_FAIL_ARGS
     fi
     if [[ -z "$compare_ref" ]]; then
       echo "==> $display_path ($POR_BRANCH_HEAD)"
       echo "SKIP: no upstream (run without --no-fetch)"
-      return 12
+      return $RC_SKIP_NO_REMOTE
     fi
 
     local ab=""
@@ -538,11 +650,11 @@ pull_job() {
     if [[ "$behind" == "0" ]]; then
       echo "==> $display_path ($POR_BRANCH_HEAD)"
       echo "SKIP: up-to-date"
-      return 13
+      return $RC_SKIP_UP_TO_DATE
     fi
 
     echo "==> $display_path ($POR_BRANCH_HEAD)"
-    git -C "$repo" merge --ff-only "$compare_ref"
+    lock_run "$repo" git -C "$repo" merge --ff-only "$compare_ref"
     return $?
   fi
 
@@ -558,16 +670,16 @@ pull_job() {
   else
     echo "==> $display_path ($POR_BRANCH_HEAD)"
     echo "SKIP: no upstream and no origin remote"
-    return 12
+    return $RC_SKIP_NO_REMOTE
   fi
 
   # Optimized default path: fetch quietly, then ff-only merge if needed.
   if ((ff_only == 1)) && [[ ${#extra_pull_args[@]} -eq 0 ]]; then
     local refspec="+refs/heads/$remote_branch:refs/remotes/$remote/$remote_branch"
-    if ! git -C "$repo" fetch --prune --quiet --no-tags --recurse-submodules=no "$remote" "$refspec"; then
+    if ! lock_run "$repo" git -C "$repo" fetch --prune --quiet --no-tags --recurse-submodules=no "$remote" "$refspec"; then
       echo "==> $display_path ($POR_BRANCH_HEAD)"
       echo "FAIL: fetch"
-      return 2
+      return $RC_FAIL
     fi
     cache_write_fetch_time "$repo" >/dev/null 2>&1 || true
 
@@ -580,11 +692,11 @@ pull_job() {
     if [[ "$behind" == "0" ]]; then
       echo "==> $display_path ($POR_BRANCH_HEAD)"
       echo "SKIP: up-to-date"
-      return 13
+      return $RC_SKIP_UP_TO_DATE
     fi
 
     echo "==> $display_path ($POR_BRANCH_HEAD)"
-    git -C "$repo" merge --ff-only "$compare_ref"
+    lock_run "$repo" git -C "$repo" merge --ff-only "$compare_ref"
     return $?
   fi
 
@@ -599,7 +711,7 @@ pull_job() {
   fi
   pull_cmd+=("$remote" "$remote_branch")
 
-  "${pull_cmd[@]}"
+  lock_run "$repo" "${pull_cmd[@]}"
 }
 
 ahead_behind() {
@@ -698,6 +810,10 @@ print_status() {
   [[ "$jobs" =~ ^[0-9]+$ ]] || die "--jobs must be an integer"
   ((jobs >= 1)) || die "--jobs must be >= 1"
 
+  if ((fetch_enabled)); then
+    warn_no_flock_parallel
+  fi
+
   discover_repos "$base" || die "not a directory: $base"
   if [[ ${#REPOS[@]} -eq 0 ]]; then
     echo "No git repos found."
@@ -709,13 +825,7 @@ print_status() {
 
   CLEANUP_DIRS+=("$tmp")
 
-  local supports_n=0
-  if supports_wait_n; then
-    supports_n=1
-  fi
-
-  local running=0
-  local -a pids=()
+  pool_setup "$jobs"
 
   local idx=0
   local repo
@@ -726,34 +836,12 @@ print_status() {
       exit 0
     ) &
 
-    if ((supports_n)); then
-      ((++running))
-      if ((running >= jobs)); then
-        wait -n || true
-        running=$((running - 1))
-      fi
-    else
-      pids+=("$!")
-      if ((${#pids[@]} >= jobs)); then
-        wait "${pids[0]}" || true
-        pids=("${pids[@]:1}")
-      fi
-    fi
+    pool_throttle "$!"
 
     ((++idx))
   done
 
-  if ((supports_n)); then
-    while ((running > 0)); do
-      wait -n || true
-      running=$((running - 1))
-    done
-  else
-    local pid
-    for pid in "${pids[@]}"; do
-      wait "$pid" || true
-    done
-  fi
+  pool_wait_all
 
   local -a row_path=()
   local -a row_branch=()
@@ -877,6 +965,8 @@ run_pull() {
   [[ "$ttl" =~ ^[0-9]+$ ]] || die "--ttl must be an integer"
   ((ttl >= 0)) || die "--ttl must be >= 0"
 
+  warn_no_flock_parallel
+
   discover_repos "$base" || die "not a directory: $base"
   if [[ ${#REPOS[@]} -eq 0 ]]; then
     echo "No git repos found."
@@ -888,13 +978,7 @@ run_pull() {
 
   CLEANUP_DIRS+=("$tmp")
 
-  local supports_n=0
-  if supports_wait_n; then
-    supports_n=1
-  fi
-
-  local running=0
-  local -a pids=()
+  pool_setup "$jobs"
 
   local idx=0
   local repo
@@ -909,34 +993,12 @@ run_pull() {
       exit 0
     ) >"$tmp/$idx.out" 2>&1 &
 
-    if ((supports_n)); then
-      ((++running))
-      if ((running >= jobs)); then
-        wait -n || true
-        running=$((running - 1))
-      fi
-    else
-      pids+=("$!")
-      if ((${#pids[@]} >= jobs)); then
-        wait "${pids[0]}" || true
-        pids=("${pids[@]:1}")
-      fi
-    fi
+    pool_throttle "$!"
 
     ((++idx))
   done
 
-  if ((supports_n)); then
-    while ((running > 0)); do
-      wait -n || true
-      running=$((running - 1))
-    done
-  else
-    local pid
-    for pid in "${pids[@]}"; do
-      wait "$pid" || true
-    done
-  fi
+  pool_wait_all
 
   local pulled=0
   local skipped_dirty=0
@@ -959,11 +1021,11 @@ run_pull() {
     fi
 
     case "$code" in
-      0) ((++pulled)) ;;
-      13) ((++skipped_up_to_date)) ;;
-      10) ((++skipped_detached)) ;;
-      11) ((++skipped_dirty)) ;;
-      12) ((++skipped_no_remote)) ;;
+      $RC_OK) ((++pulled)) ;;
+      $RC_SKIP_UP_TO_DATE) ((++skipped_up_to_date)) ;;
+      $RC_SKIP_DETACHED) ((++skipped_detached)) ;;
+      $RC_SKIP_DIRTY) ((++skipped_dirty)) ;;
+      $RC_SKIP_NO_REMOTE) ((++skipped_no_remote)) ;;
       *) ((++failed)) ;;
     esac
   done

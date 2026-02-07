@@ -16,6 +16,11 @@ brew install libyaml
 brew install bash
 brew install bc
 brew install coreutils
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  brew install flock
+else
+  brew install util-linux
+fi
 brew install gawk
 brew install gnu-sed
 brew install ffmpeg
