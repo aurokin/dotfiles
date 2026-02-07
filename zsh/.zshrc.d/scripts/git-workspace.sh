@@ -22,10 +22,12 @@ usage() {
   cat <<EOF
 Usage:
   $script_name status [path] [--no-fetch] [--jobs N]
-  $script_name pull [path] [--include-dirty] [--no-ff-only] [--no-fetch] [--jobs N] [--] [git pull args...]
+  $script_name pull [path] [--include-dirty] [--no-ff-only] [--no-fetch] [--jobs N] [--ttl N] [--force-fetch] [--] [git pull args...]
 
 Environment:
   GIT_WORKSPACE_JOBS  Default for --jobs (default: min(CPU, 8))
+  GIT_WORKSPACE_CACHE_DIR  Cache dir (default: $XDG_CACHE_HOME/git-workspace or ~/.cache/git-workspace)
+  GIT_WORKSPACE_FETCH_TTL_SECONDS  Treat remote as fresh for N seconds after a successful fetch (default: 120)
 
 Scans:
   - <path> (default: .)
@@ -44,6 +46,7 @@ Examples:
   $script_name pull ~/code
   $script_name pull --include-dirty -- --rebase
   $script_name pull --no-fetch   # fast (assumes you've already fetched, e.g. via status)
+  $script_name pull --ttl 0      # disable fetch cache shortcut
 EOF
 }
 
@@ -221,6 +224,89 @@ mktemp_dir() {
   return 1
 }
 
+cache_root() {
+  if [[ -n "${GIT_WORKSPACE_CACHE_DIR:-}" ]]; then
+    printf '%s' "$GIT_WORKSPACE_CACHE_DIR"
+    return 0
+  fi
+  local root="${XDG_CACHE_HOME:-$HOME/.cache}"
+  printf '%s' "$root/git-workspace"
+}
+
+cache_key() {
+  local s="$1"
+  local out=""
+  if command -v sha1sum >/dev/null 2>&1; then
+    out="$(printf '%s' "$s" | sha1sum 2>/dev/null || true)"
+    printf '%s' "${out%% *}"
+    return 0
+  fi
+  if command -v shasum >/dev/null 2>&1; then
+    out="$(printf '%s' "$s" | shasum -a 1 2>/dev/null || true)"
+    printf '%s' "${out%% *}"
+    return 0
+  fi
+  if command -v md5sum >/dev/null 2>&1; then
+    out="$(printf '%s' "$s" | md5sum 2>/dev/null || true)"
+    printf '%s' "${out%% *}"
+    return 0
+  fi
+
+  # Fallback: checksum + length.
+  out="$(printf '%s' "$s" | cksum 2>/dev/null || true)"
+  local crc="${out%% *}"
+  local rest="${out#* }"
+  local len="${rest%% *}"
+  printf '%s_%s' "$crc" "$len"
+}
+
+cache_fetch_file() {
+  local repo_abs="$1"
+  local dir
+  dir="$(cache_root)"
+  printf '%s/fetch-%s.ts' "$dir" "$(cache_key "$repo_abs")"
+}
+
+cache_write_fetch_time() {
+  local repo_abs="$1"
+  local dir
+  dir="$(cache_root)"
+  mkdir -p "$dir" 2>/dev/null || return 1
+  date +%s >"$(cache_fetch_file "$repo_abs")" 2>/dev/null || return 1
+}
+
+cache_read_fetch_time() {
+  local repo_abs="$1"
+  local f
+  f="$(cache_fetch_file "$repo_abs")"
+  [[ -f "$f" ]] || return 1
+  local ts
+  ts="$(<"$f")"
+  [[ "$ts" =~ ^[0-9]+$ ]] || return 1
+  printf '%s' "$ts"
+}
+
+cache_is_fresh() {
+  local repo_abs="$1"
+  local ttl="$2"
+  [[ "$ttl" =~ ^[0-9]+$ ]] || return 1
+  ((ttl > 0)) || return 1
+
+  local last
+  last="$(cache_read_fetch_time "$repo_abs" 2>/dev/null || true)"
+  [[ -n "$last" ]] || return 1
+
+  local now
+  now="$(date +%s 2>/dev/null || true)"
+  [[ "$now" =~ ^[0-9]+$ ]] || return 1
+
+  local age=$((now - last))
+  if ((age < 0)); then
+    return 0
+  fi
+  ((age <= ttl))
+}
+
 cpu_count() {
   if command -v nproc >/dev/null 2>&1; then
     nproc
@@ -278,6 +364,7 @@ status_row_tsv() {
     if ! err="$(git -C "$repo" fetch --prune --quiet --no-tags --recurse-submodules=no "$fetch_remote" 2>&1)"; then
       fetch_status="fetch-error"
     else
+      cache_write_fetch_time "$repo" >/dev/null 2>&1 || true
       # Refresh branch.ab after fetch.
       collect_porcelain "$repo" >/dev/null 2>&1 || true
     fi
@@ -363,7 +450,9 @@ pull_job() {
   local include_dirty="$3"
   local ff_only="$4"
   local no_fetch="$5"
-  shift 5
+  local ttl="$6"
+  local force_fetch="$7"
+  shift 7
   local -a extra_pull_args=("$@")
 
   if ! collect_porcelain "$repo"; then
@@ -388,6 +477,37 @@ pull_job() {
   local compare_ref=""
   compare_ref="$(compare_ref_for_repo "$repo" "$POR_BRANCH_HEAD" "$POR_UPSTREAM" 2>/dev/null || true)"
 
+  # Cache shortcut: if we just fetched (e.g. via `status`), avoid re-fetching.
+  # Only used when we can rely on local remote-tracking refs.
+  if ((no_fetch == 0 && force_fetch == 0)) && cache_is_fresh "$repo" "$ttl"; then
+    if [[ -n "$compare_ref" ]]; then
+      local ahead=""
+      local behind=""
+      local ab=""
+      if [[ -n "$POR_UPSTREAM" && "$compare_ref" == "$POR_UPSTREAM" && -n "$POR_AB_AHEAD" && -n "$POR_AB_BEHIND" ]]; then
+        ahead="$POR_AB_AHEAD"
+        behind="$POR_AB_BEHIND"
+      else
+        if ab="$(ahead_behind "$repo" "$compare_ref" 2>/dev/null)"; then
+          ahead="${ab%%$'\t'*}"
+          behind="${ab#*$'\t'}"
+        fi
+      fi
+
+      if [[ "$behind" == "0" ]]; then
+        echo "==> $display_path ($POR_BRANCH_HEAD)"
+        echo "SKIP: up-to-date"
+        return 13
+      fi
+
+      if ((ff_only == 1)) && [[ ${#extra_pull_args[@]} -eq 0 ]]; then
+        echo "==> $display_path ($POR_BRANCH_HEAD)"
+        git -C "$repo" merge --ff-only "$compare_ref"
+        return $?
+      fi
+    fi
+  fi
+
   if ((no_fetch)); then
     # merge-only fast path (assumes compare_ref already updated by a prior fetch).
     if ((ff_only == 0)); then
@@ -404,6 +524,21 @@ pull_job() {
       echo "==> $display_path ($POR_BRANCH_HEAD)"
       echo "SKIP: no upstream (run without --no-fetch)"
       return 12
+    fi
+
+    local ab=""
+    local behind=""
+    if [[ -n "$POR_UPSTREAM" && "$compare_ref" == "$POR_UPSTREAM" && -n "$POR_AB_BEHIND" ]]; then
+      behind="$POR_AB_BEHIND"
+    else
+      if ab="$(ahead_behind "$repo" "$compare_ref" 2>/dev/null)"; then
+        behind="${ab#*$'\t'}"
+      fi
+    fi
+    if [[ "$behind" == "0" ]]; then
+      echo "==> $display_path ($POR_BRANCH_HEAD)"
+      echo "SKIP: up-to-date"
+      return 13
     fi
 
     echo "==> $display_path ($POR_BRANCH_HEAD)"
@@ -424,6 +559,33 @@ pull_job() {
     echo "==> $display_path ($POR_BRANCH_HEAD)"
     echo "SKIP: no upstream and no origin remote"
     return 12
+  fi
+
+  # Optimized default path: fetch quietly, then ff-only merge if needed.
+  if ((ff_only == 1)) && [[ ${#extra_pull_args[@]} -eq 0 ]]; then
+    local refspec="+refs/heads/$remote_branch:refs/remotes/$remote/$remote_branch"
+    if ! git -C "$repo" fetch --prune --quiet --no-tags --recurse-submodules=no "$remote" "$refspec"; then
+      echo "==> $display_path ($POR_BRANCH_HEAD)"
+      echo "FAIL: fetch"
+      return 2
+    fi
+    cache_write_fetch_time "$repo" >/dev/null 2>&1 || true
+
+    compare_ref="$remote/$remote_branch"
+    local ab=""
+    local behind=""
+    if ab="$(ahead_behind "$repo" "$compare_ref" 2>/dev/null)"; then
+      behind="${ab#*$'\t'}"
+    fi
+    if [[ "$behind" == "0" ]]; then
+      echo "==> $display_path ($POR_BRANCH_HEAD)"
+      echo "SKIP: up-to-date"
+      return 13
+    fi
+
+    echo "==> $display_path ($POR_BRANCH_HEAD)"
+    git -C "$repo" merge --ff-only "$compare_ref"
+    return $?
   fi
 
   echo "==> $display_path ($POR_BRANCH_HEAD)"
@@ -660,6 +822,8 @@ run_pull() {
   local no_fetch=0
   local jobs
   jobs="$(default_jobs)"
+  local ttl="${GIT_WORKSPACE_FETCH_TTL_SECONDS:-120}"
+  local force_fetch=0
   local -a extra_pull_args=()
 
   while [[ $# -gt 0 ]]; do
@@ -672,6 +836,17 @@ run_pull() {
         ;;
       --no-fetch)
         no_fetch=1
+        ;;
+      --ttl)
+        shift
+        [[ $# -gt 0 ]] || die "--ttl requires a number"
+        ttl="$1"
+        ;;
+      --ttl=*)
+        ttl="${1#--ttl=}"
+        ;;
+      --force-fetch)
+        force_fetch=1
         ;;
       --jobs|-j)
         shift
@@ -699,6 +874,8 @@ run_pull() {
 
   [[ "$jobs" =~ ^[0-9]+$ ]] || die "--jobs must be an integer"
   ((jobs >= 1)) || die "--jobs must be >= 1"
+  [[ "$ttl" =~ ^[0-9]+$ ]] || die "--ttl must be an integer"
+  ((ttl >= 0)) || die "--ttl must be >= 0"
 
   discover_repos "$base" || die "not a directory: $base"
   if [[ ${#REPOS[@]} -eq 0 ]]; then
@@ -727,7 +904,7 @@ run_pull() {
 
     (
       set +e
-      pull_job "$repo" "$display_path" "$include_dirty" "$ff_only" "$no_fetch" "${extra_pull_args[@]}"
+      pull_job "$repo" "$display_path" "$include_dirty" "$ff_only" "$no_fetch" "$ttl" "$force_fetch" "${extra_pull_args[@]}"
       echo "$?" >"$tmp/$idx.rc"
       exit 0
     ) >"$tmp/$idx.out" 2>&1 &
@@ -765,6 +942,7 @@ run_pull() {
   local skipped_dirty=0
   local skipped_detached=0
   local skipped_no_remote=0
+  local skipped_up_to_date=0
   local failed=0
 
   for ((idx = 0; idx < ${#REPOS[@]}; idx++)); do
@@ -782,6 +960,7 @@ run_pull() {
 
     case "$code" in
       0) ((++pulled)) ;;
+      13) ((++skipped_up_to_date)) ;;
       10) ((++skipped_detached)) ;;
       11) ((++skipped_dirty)) ;;
       12) ((++skipped_no_remote)) ;;
@@ -789,7 +968,7 @@ run_pull() {
     esac
   done
 
-  echo "pulled:$pulled skipped-dirty:$skipped_dirty skipped-detached:$skipped_detached skipped-no-remote:$skipped_no_remote failed:$failed"
+  echo "pulled:$pulled skipped-up-to-date:$skipped_up_to_date skipped-dirty:$skipped_dirty skipped-detached:$skipped_detached skipped-no-remote:$skipped_no_remote failed:$failed"
 }
 
 main() {
