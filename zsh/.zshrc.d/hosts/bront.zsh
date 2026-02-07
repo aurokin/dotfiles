@@ -1,2 +1,12 @@
 # OpenClaw completion was removed for startup speed; re-add if needed:
 # source <(openclaw completion --shell zsh)
+
+# Local-only npm global bin (e.g. OpenClaw installed outside mise).
+# Keep it lower priority than mise-managed tools.
+npm_global_bin="$HOME/.npm-global/bin"
+if [[ -d "$npm_global_bin" ]]; then
+  case ":$PATH:" in
+    *":$npm_global_bin:"*) ;;
+    *) export PATH="$PATH:$npm_global_bin" ;;
+  esac
+fi
