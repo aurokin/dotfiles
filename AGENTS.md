@@ -15,6 +15,7 @@ This file defines repository-specific instructions for automation and agents.
 - Keep shell scripts called from zsh aliases in `zsh/.zshrc.d/scripts`.
 - Zsh config lives in `zsh/.zshrc`; aliases should reference scripts under `~/.zshrc.d/scripts` (not `~/.scripts`).
 - If a script is meant to be run, ensure it is executable and referenced explicitly from aliases or functions.
+- Neovim config: keep `nvim/.config/nvim/init.lua` as an entrypoint; put non-plugin config in `nvim/.config/nvim/lua/custom/` (e.g. `options.lua`, `keymaps.lua`, `autocmds.lua`) and keep plugin specs in `nvim/.config/nvim/lua/custom/plugins/`.
 
 ## Scripts
 - Place new setup or install helpers in `dot_scripts/` with descriptive filenames.
