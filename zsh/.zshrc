@@ -49,6 +49,7 @@ export PATH="$HOME/.bin:$HOME/.local/bin:$PATH"
 
 # Set Aliases
 alias c="clear"
+alias cc="claude --dangerously-skip-permissions"
 alias e="exit"
 alias ds="directory-sync"
 alias lsl="eza -lg --smart-group"
