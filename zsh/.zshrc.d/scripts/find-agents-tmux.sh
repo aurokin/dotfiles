@@ -147,6 +147,36 @@ trim_ws() {
   printf '%s' "$s"
 }
 
+display_title_for_pane() {
+  local provider="${1:-}"
+  local pane_title="${2:-}"
+  local activity_title="${3:-}"
+  local pane_cmd="${4:-}"
+  local proc_name="${5:-}"
+  local pane_tty="${6:-}"
+  local pane_id="${7:-}"
+
+  local title="$pane_title"
+  title="$(normalize_title_for_provider "$provider" "$title" "$activity_title")"
+  title="$(trim_ws "$title")"
+
+  if [[ -z "$title" ]]; then
+    if [[ -n "$provider" ]]; then
+      title="$provider"
+    elif [[ -n "$pane_cmd" ]]; then
+      title="$pane_cmd"
+    elif [[ -n "$proc_name" ]]; then
+      title="$proc_name"
+    elif [[ -n "$pane_tty" ]]; then
+      title="$pane_tty"
+    else
+      title="$pane_id"
+    fi
+  fi
+
+  printf '%s' "$title"
+}
+
 for provider in "${providers[@]}"; do
   [[ -z "$provider" ]] && continue
   if [[ -n "${seen_providers[$provider]+x}" ]]; then
@@ -197,6 +227,10 @@ fi
 if [[ -z "$sample_regex_default" ]]; then
   sample_regex_default="esc to cancel|esc to interrupt|esc to stop"
 fi
+
+# Use a non-whitespace delimiter so empty fields (e.g. empty #{pane_title}) are preserved by `read`.
+pane_delim=$'\x1f'
+pane_list_format="#{session_name}${pane_delim}#{window_index}${pane_delim}#{pane_index}${pane_delim}#{pane_id}${pane_delim}#{pane_pid}${pane_delim}#{pane_current_command}${pane_delim}#{pane_title}${pane_delim}#{pane_tty}"
 
 pattern="${TMUX_AGENTS_PATTERN:-$pattern_default}"
 sample_lines="${TMUX_AGENTS_SAMPLE_LINES:-120}"
@@ -400,7 +434,11 @@ claude_title_build_regex_default='^[[:space:]]*[⠁⠂⠄⡀⢀⠠⠐⠈⠋⠙�
 claude_build_regex_default='^[[:space:]]*esc to interrupt[[:space:]]*$'
 gemini_build_regex_default='\(esc to cancel, [0-9]+[smhd]\)'
 
-capture_pane_sample() {
+tmux_list_panes() {
+  tmux list-panes -a -F "$pane_list_format" 2>/dev/null || true
+}
+
+tmux_capture_pane_sample() {
   local pane_id="$1"
   local lines="$2"
   [[ -z "$pane_id" || -z "$lines" ]] && return 1
@@ -535,7 +573,7 @@ ensure_ps_data() {
   local pane_tty=""
   local tty_short=""
 
-  while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_title pane_tty; do
+  while IFS="$pane_delim" read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_title pane_tty; do
     [[ -n "$pane_pid" ]] && wanted_pids["$pane_pid"]=1
     tty_short="${pane_tty#/dev/}"
     [[ -n "$tty_short" ]] && wanted_ttys["$tty_short"]=1
@@ -575,7 +613,7 @@ ensure_ps_data() {
   done < <(ps -axo pid=,ppid=,tty=,comm=,command= 2>/dev/null || true)
 }
 
-pane_lines="$(tmux list-panes -a -F $'#{session_name}\t#{window_index}\t#{pane_index}\t#{pane_id}\t#{pane_pid}\t#{pane_current_command}\t#{pane_title}\t#{pane_tty}' 2>/dev/null || true)"
+pane_lines="$(tmux_list_panes)"
 if [[ -z "$pane_lines" ]]; then
   echo "No tmux panes found."
   exit 0
@@ -585,7 +623,7 @@ if ((want_details || deep)); then
   ensure_ps_data "$pane_lines"
 fi
 
-while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_title pane_tty; do
+while IFS="$pane_delim" read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_title pane_tty; do
   pane_matched=0
   pane_building=0
   pane_activity_title=""
@@ -685,7 +723,7 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
     pane_sample=""
     case "$pane_provider" in
       codex)
-        pane_sample="$(capture_pane_sample "$pane_id" "$sample_lines")"
+        pane_sample="$(tmux_capture_pane_sample "$pane_id" "$sample_lines")"
         if [[ -n "$pane_sample" ]]; then
           pane_activity_title="$(extract_codex_activity_title "$pane_sample")"
           if [[ -n "$pane_activity_title" ]]; then
@@ -701,7 +739,7 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
           pane_building=1
         else
           claude_sample_lines="${TMUX_AGENTS_CLAUDE_SAMPLE_LINES:-40}"
-          pane_sample="$(capture_pane_sample "$pane_id" "$claude_sample_lines")"
+          pane_sample="$(tmux_capture_pane_sample "$pane_id" "$claude_sample_lines")"
           if [[ -n "$pane_sample" ]] && claude_is_building_from_title_and_sample "$pane_title" "$pane_sample" claude_source claude_regex; then
             pane_building=1
           fi
@@ -718,7 +756,7 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
           :
         else
           gemini_regex=""
-          pane_sample="$(capture_pane_sample "$pane_id" "$sample_lines")"
+          pane_sample="$(tmux_capture_pane_sample "$pane_id" "$sample_lines")"
           if [[ -n "$pane_sample" ]] && gemini_is_building_from_title_and_sample "$pane_title" "$pane_sample" gemini_regex; then
             pane_building=1
           fi
@@ -731,7 +769,7 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
         opencode_footer=""
         opencode_regex=""
         opencode_sample_lines="${TMUX_AGENTS_OPENCODE_SAMPLE_LINES:-12}"
-        pane_sample="$(capture_pane_sample "$pane_id" "$opencode_sample_lines")"
+        pane_sample="$(tmux_capture_pane_sample "$pane_id" "$opencode_sample_lines")"
         if [[ -n "$pane_sample" ]] && opencode_is_building_from_sample "$pane_sample" opencode_footer opencode_regex; then
           pane_building=1
         fi
@@ -741,7 +779,7 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
         fi
         ;;
       *)
-        pane_sample="$(capture_pane_sample "$pane_id" "$sample_lines")"
+        pane_sample="$(tmux_capture_pane_sample "$pane_id" "$sample_lines")"
         if [[ -n "$pane_sample" ]] && sample_matches_regex "$pane_sample" "$sample_regex"; then
           pane_building=1
           add_match "pane_sample: matched /$sample_regex/ in last ${sample_lines} lines"
@@ -759,8 +797,7 @@ while IFS=$'\t' read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_
       building_bool="true"
     fi
 
-    display_title="$pane_title"
-    display_title="$(normalize_title_for_provider "$pane_provider" "$display_title" "$pane_activity_title")"
+    display_title="$(display_title_for_pane "$pane_provider" "$pane_title" "$pane_activity_title" "$pane_cmd" "$proc_name" "$pane_tty" "$pane_id")"
 
     if ((json_output)); then
       if ((json_first)); then
