@@ -57,13 +57,6 @@ tmux_focus_pane() {
   fi
 }
 
-shell_quote() {
-  # Single-quote for safe round-tripping through typical shells (bash/zsh/sh).
-  local s="$1"
-  s="${s//\'/\'\\\'\'}"
-  printf "'%s'" "$s"
-}
-
 resolve_pane_id() {
   local pane_id="${1:-${TMUX_PANE:-}}"
   if [[ -n "$pane_id" ]]; then
@@ -85,13 +78,46 @@ resolve_session_from_pane() {
 
 resolve_base_index() {
   local session="$1"
-  local base
+  local base=""
+
+  # If base-index is only set at the global scope, `show-option -t` may return
+  # empty. Fall back to the global default so we honor `set -g base-index 1`.
   base="$(tmux show-option -t "$session" -qv base-index 2>/dev/null || true)"
-  base="${base:-0}"
+  if [[ -z "$base" ]]; then
+    base="$(tmux show-option -gqv base-index 2>/dev/null || true)"
+  fi
+
+  base="${base:-1}"
   if [[ ! "$base" =~ ^[0-9]+$ ]]; then
-    base=0
+    base=1
   fi
   printf '%s' "$base"
+}
+
+resolve_workspace_base_index() {
+  local session="$1"
+  local base
+
+  base="$(resolve_base_index "$session")"
+
+  # Workspace windows (editor/git/query/ai) should start at 1 even if the
+  # session's base-index is 0 (for example, older sessions or a scratch window
+  # at index 0).
+  if (( base < 1 )); then
+    base=1
+  fi
+
+  printf '%s' "$base"
+}
+
+set_session_working_dir() {
+  local session="$1"
+  local start_dir="$2"
+
+  # Keep tmux's idea of the session directory in sync with where you invoked
+  # the scaffold from, so new windows/panes inherit it without sending `cd`
+  # into any existing panes.
+  tmux set-option -t "$session" default-path "$start_dir" 2>/dev/null || true
 }
 
 list_windows() {
@@ -164,36 +190,11 @@ ensure_window() {
   local session="$1"
   local name="$2"
   local start_dir="$3"
-  shift 3
-  local -a cmd=("$@")
-
-  if [[ "${#cmd[@]}" -gt 0 ]]; then
-    tmux new-window -d -S -t "$session:" -n "$name" -c "$start_dir" "${cmd[@]}"
-  else
-    tmux new-window -d -S -t "$session:" -n "$name" -c "$start_dir"
+  if [[ -n "$(win_id_by_name "$session" "$name" || true)" ]]; then
+    return 0
   fi
-}
 
-maybe_cd_window_shells() {
-  local window_id="$1"
-  local start_dir="$2"
-
-  local quoted
-  quoted="$(shell_quote "$start_dir")"
-
-  local pane_id cmd
-  while IFS= read -r pane_id; do
-    [[ -z "$pane_id" ]] && continue
-    cmd="$(tmux display-message -p -t "$pane_id" '#{pane_current_command}' 2>/dev/null || true)"
-    case "$cmd" in
-      bash|zsh|sh|dash|fish)
-        tmux send-keys -t "$pane_id" "cd -- $quoted" C-m
-        ;;
-      *)
-        :
-        ;;
-    esac
-  done < <(tmux list-panes -t "$window_id" -F '#{pane_id}' 2>/dev/null || true)
+  tmux new-window -d -S -t "$session:" -n "$name" -c "$start_dir"
 }
 
 scaffold_workspace() {
@@ -202,65 +203,21 @@ scaffold_workspace() {
   local session="$3"
   local start_dir="$4"
 
+  set_session_working_dir "$session" "$start_dir"
+
   # Create missing windows in this directory.
   local name
   for name in "${WORKSPACE_PRIORITY[@]}"; do
-    if [[ "$name" == "git" ]]; then
-      ensure_window "$session" git "$start_dir" lazygit
-    else
-      ensure_window "$session" "$name" "$start_dir"
-    fi
+    ensure_window "$session" "$name" "$start_dir"
   done
-
-  # If windows already exist, best-effort cd any shell panes so they match the new destination.
-  local win_id
-  for name in editor query ai; do
-    win_id="$(win_id_by_name "$session" "$name" || true)"
-    [[ -z "$win_id" ]] && continue
-    maybe_cd_window_shells "$win_id" "$start_dir"
-  done
-
-  # Git window: if it's already lazygit but in a different dir, restart it in the new dir.
-  local git_id git_cmd git_dir
-  git_id="$(win_id_by_name "$session" git || true)"
-  if [[ -n "$git_id" ]]; then
-    git_cmd="$(tmux display-message -p -t "$git_id" '#{pane_current_command}' 2>/dev/null || true)"
-    git_dir="$(tmux display-message -p -t "$git_id" '#{pane_current_path}' 2>/dev/null || true)"
-    if [[ "$git_cmd" == "lazygit" && -n "$git_dir" && "$git_dir" != "$start_dir" ]]; then
-      tmux respawn-window -k -t "$git_id" -c "$start_dir" lazygit 2>/dev/null || true
-    elif [[ "$git_cmd" == "bash" || "$git_cmd" == "zsh" || "$git_cmd" == "sh" || "$git_cmd" == "dash" || "$git_cmd" == "fish" ]]; then
-      maybe_cd_window_shells "$git_id" "$start_dir"
-      tmux send-keys -t "$git_id" "lazygit" C-m 2>/dev/null || true
-    fi
-  fi
 
   # Put tabs in the preferred order.
   local base_index
-  base_index="$(resolve_base_index "$session")"
+  base_index="$(resolve_workspace_base_index "$session")"
   reorder_windows "$session" "$base_index" "${WORKSPACE_PRIORITY[@]}" >/dev/null
 
-  # Return to the editor pane (prefer the exact pane you invoked from if it lives under editor).
-  local editor_id editor_pane_id
-  editor_id="$(win_id_by_name "$session" editor || true)"
-  editor_pane_id=""
-  if [[ -n "$editor_id" ]]; then
-    if tmux list-panes -t "$editor_id" -F '#{pane_id}' 2>/dev/null | grep -Fqx "$invoking_pane_id"; then
-      editor_pane_id="$invoking_pane_id"
-    else
-      editor_pane_id="$(tmux display-message -p -t "$editor_id" '#{pane_id}' 2>/dev/null || true)"
-    fi
-  fi
-
-  if [[ -n "$editor_pane_id" ]]; then
-    tmux_focus_pane "$client_tty" "$editor_pane_id"
-  else
-    # Fallback: switch by window name.
-    if [[ -n "$client_tty" ]]; then
-      tmux switch-client -c "$client_tty" -t "$session:editor" 2>/dev/null || true
-    else
-      tmux switch-client -t "$session:editor" 2>/dev/null || true
-    fi
-  fi
+  # Return to the pane you invoked from (it may not always be under "editor").
+  tmux_focus_pane "$client_tty" "$invoking_pane_id"
 
   tmux_msg "$client_tty" "Scaffolded workspace in: $start_dir"
 }
@@ -294,7 +251,7 @@ main() {
   case "$subcmd" in
     reorder)
       local base_index did_any
-      base_index="$(resolve_base_index "$session")"
+      base_index="$(resolve_workspace_base_index "$session")"
       did_any="$(reorder_windows "$session" "$base_index" "${WORKSPACE_PRIORITY[@]}")"
       tmux_focus_pane "$client_tty" "$pane_id"
       if [[ "$did_any" -eq 1 ]]; then
