@@ -28,6 +28,7 @@ brew install git
 brew install gh
 brew install glab
 brew install steipete/tap/remindctl
+brew install steipete/tap/goplaces
 
 brew install zsh
 brew install pure
