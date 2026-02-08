@@ -99,16 +99,9 @@ extract_codex_activity_title() {
   local trimmed=""
   local candidate=""
   local re='^(.+)[[:space:]]*\([^)]*esc[[:space:]]+to[[:space:]]+(interrupt|cancel|stop)[^)]*\)[[:space:]]*$'
-  local lines=()
-  local i=0
 
-  # Read into an array so we can scan bottom-up (the most recent status line wins).
+  # Scan top-down and keep the most recent match; this avoids buffering the whole sample.
   while IFS= read -r line; do
-    lines+=("$line")
-  done <<< "$sample"
-
-  for ((i=${#lines[@]}-1; i>=0; i--)); do
-    line="${lines[$i]}"
     [[ -z "$line" ]] && continue
 
     trimmed="$line"
@@ -119,14 +112,10 @@ extract_codex_activity_title() {
 
     # Codex often prints: "<activity title> (<time> • esc to interrupt)"
     if [[ "$trimmed" =~ $re ]]; then
-      candidate="${BASH_REMATCH[1]}"
-      candidate="$(trim_ws "$candidate")"
-      if [[ -n "$candidate" ]]; then
-        title="$candidate"
-        break
-      fi
+      candidate="$(trim_ws "${BASH_REMATCH[1]}")"
+      [[ -n "$candidate" ]] && title="$candidate"
     fi
-  done
+  done <<< "$sample"
 
   printf '%s' "$title"
 }
@@ -411,20 +400,26 @@ is_self_line() {
   [[ "$line" == *"$script_basename"* || "$line" == *"$script_path"* ]]
 }
 
-rg_available=0
-if command -v rg >/dev/null 2>&1; then
-  rg_available=1
-fi
-
 sample_matches_regex() {
   local sample="$1"
   local regex="$2"
   [[ -z "$sample" || -z "$regex" ]] && return 1
-  if ((rg_available)); then
-    rg -q -i -m 1 -e "$regex" <<<"$sample" >/dev/null 2>&1
-  else
-    grep -q -i -m 1 -E "$regex" <<<"$sample" >/dev/null 2>&1
-  fi
+
+  # Match line-by-line so ^/$ behave like grep/rg on multi-line samples.
+  local nocase_was_set=0
+  shopt -q nocasematch && nocase_was_set=1
+  shopt -s nocasematch
+
+  local line=""
+  while IFS= read -r line; do
+    if [[ "$line" =~ $regex ]]; then
+      ((nocase_was_set)) || shopt -u nocasematch
+      return 0
+    fi
+  done <<< "$sample"
+
+  ((nocase_was_set)) || shopt -u nocasematch
+  return 1
 }
 
 opencode_footer_build_regex_default='^[[:space:]]*[^[:alnum:][:space:]]{2,}[[:space:]]+esc interrupt'
@@ -528,23 +523,26 @@ extract_last_line_containing() {
   [[ -z "$sample" || -z "$needle" ]] && return 1
 
   local line=""
-  local lines=()
-  local i=0
-
+  local last=""
   while IFS= read -r line; do
-    lines+=("$line")
-  done <<< "$sample"
-
-  for ((i=${#lines[@]}-1; i>=0; i--)); do
-    line="${lines[$i]}"
     [[ -z "$line" ]] && continue
     if [[ "$line" == *"$needle"* ]]; then
-      printf '%s' "$(trim_ws "$line")"
-      return 0
+      last="$line"
     fi
-  done
+  done <<< "$sample"
 
-  return 1
+  [[ -n "$last" ]] || return 1
+  printf '%s' "$(trim_ws "$last")"
+  return 0
+}
+
+ps_state_is_active() {
+  local state="${1:-}"
+  # 'T' = stopped (job control / tracer), 'Z' = zombie, 'X' = dead.
+  case "$state" in
+    T|Z|X) return 1 ;;
+  esac
+  return 0
 }
 
 declare -A pid_comm
@@ -579,13 +577,47 @@ ensure_ps_data() {
     [[ -n "$tty_short" ]] && wanted_ttys["$tty_short"]=1
   done <<< "$panes_blob"
 
+  local tty_list=""
+  local t=""
+  for t in "${!wanted_ttys[@]}"; do
+    [[ -z "$t" ]] && continue
+    if [[ -z "$tty_list" ]]; then
+      tty_list="$t"
+    else
+      tty_list+=",${t}"
+    fi
+  done
+
+  local pid_list=""
+  local p=""
+  for p in "${!wanted_pids[@]}"; do
+    [[ -z "$p" ]] && continue
+    if [[ -z "$pid_list" ]]; then
+      pid_list="$p"
+    else
+      pid_list+=",${p}"
+    fi
+  done
+
+  local ps_cmd=()
+  if [[ -n "$tty_list" ]]; then
+    # Fast path: only scan processes attached to tmux pane ttys.
+    ps_cmd=(ps -t "$tty_list" -o pid=,ppid=,tty=,state=,comm=,command=)
+  elif [[ -n "$pid_list" ]]; then
+    # Fallback: no tty info from tmux; at least populate the pane PID lookups.
+    ps_cmd=(ps -p "$pid_list" -o pid=,ppid=,tty=,state=,comm=,command=)
+  else
+    return 0
+  fi
+
   local pid=""
   local ppid=""
   local tty=""
+  local state=""
   local comm=""
   local cmdline=""
   local proc_line=""
-  while IFS=$' \t' read -r pid ppid tty comm cmdline; do
+  while IFS=$' \t' read -r pid ppid tty state comm cmdline; do
     [[ -z "$pid" ]] && continue
 
     proc_line="$pid ${cmdline:-$comm}"
@@ -595,7 +627,7 @@ ensure_ps_data() {
       pid_cmdline["$pid"]="$cmdline"
     fi
 
-    if [[ -n "$tty" && -n "${wanted_ttys[$tty]+x}" ]]; then
+    if ps_state_is_active "$state" && [[ -n "$tty" && -n "${wanted_ttys[$tty]+x}" ]]; then
       if [[ -n "${tty_process_map[$tty]+x}" ]]; then
         tty_process_map["$tty"]+=$'\n'"$proc_line"
       else
@@ -603,14 +635,22 @@ ensure_ps_data() {
       fi
     fi
 
-    if ((deep == 1)) && [[ -n "$ppid" && -n "${wanted_pids[$ppid]+x}" ]]; then
+  done < <("${ps_cmd[@]}" 2>/dev/null || true)
+
+  if ((deep == 1)) && [[ -n "$pid_list" ]]; then
+    # Deep mode: explicitly pull child processes of pane pids (may include tty-less children).
+    while IFS=$' \t' read -r pid ppid tty state comm cmdline; do
+      [[ -z "$pid" ]] && continue
+      ps_state_is_active "$state" || continue
+
+      proc_line="$pid ${cmdline:-$comm}"
       if [[ -n "${ppid_children[$ppid]+x}" ]]; then
         ppid_children["$ppid"]+=$'\n'"$proc_line"
       else
         ppid_children["$ppid"]="$proc_line"
       fi
-    fi
-  done < <(ps -axo pid=,ppid=,tty=,comm=,command= 2>/dev/null || true)
+    done < <(ps --ppid "$pid_list" -o pid=,ppid=,tty=,state=,comm=,command= 2>/dev/null || true)
+  fi
 }
 
 pane_lines="$(tmux_list_panes)"
