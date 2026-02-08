@@ -15,6 +15,10 @@ vim.keymap.set({ 'n', 'v' }, '<leader>yp', function()
     local default_reg_contents = vim.fn.getreg '"'
     vim.fn.setreg('+', default_reg_contents)
 end, { desc = 'Copy to Clipboard from Register' })
+vim.keymap.set({ 'n', 'v' }, '<leader>p', function()
+    local default_reg_contents = vim.fn.getreg '"'
+    vim.fn.setreg('+', default_reg_contents)
+end, { desc = 'Copy to Clipboard from Register' })
 vim.keymap.set({ 'n', 'v' }, '<leader>yy', function()
     local clip_contents = vim.fn.getreg '+'
     vim.fn.setreg('"', clip_contents)
