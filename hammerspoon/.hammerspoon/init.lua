@@ -8,9 +8,48 @@ local MOVE_MAXIMIZE_DELAY_SEC = 0.02
 local MOVE_RETURN_TO_ORIGINAL = false
 
 local FOCUS_MODIFIERS = { alt = true }
-local MOVE_MODIFIERS = { alt = true, shift = true }
+-- NOTE: Option+Shift+number is easy to hit accidentally (e.g. typing symbols
+-- with Shift+number while Option is still held). Make moves more deliberate.
+local MOVE_MODIFIERS = { alt = true, ctrl = true, shift = true }
 local MOVE_SWITCH_MODIFIERS = { alt = true }
 local MODIFIER_KEYS = { "alt", "cmd", "ctrl", "shift", "fn" }
+
+local DEBUG_SPACE = false
+local log = hs.logger.new("spaces", DEBUG_SPACE and "debug" or "warning")
+
+local function dbg(fmt, ...)
+  if not DEBUG_SPACE then
+    return
+  end
+  log.df(fmt, ...)
+end
+
+local function flagsToString(flags)
+  local parts = {}
+  for _, key in ipairs(MODIFIER_KEYS) do
+    if flags[key] then
+      parts[#parts + 1] = key
+    end
+  end
+  return table.concat(parts, "+")
+end
+
+local lastNumberChord = nil
+local debugSpaceWatcherTimer = nil
+if DEBUG_SPACE then
+  local lastSpace = hs.spaces.focusedSpace()
+  debugSpaceWatcherTimer = hs.timer.doEvery(0.1, function()
+    local current = hs.spaces.focusedSpace()
+    if current ~= lastSpace then
+      local chord = lastNumberChord
+      local chordStr = chord
+          and string.format("%s %s (%s)", tostring(chord.index), tostring(chord.action), tostring(chord.flags))
+        or "<none>"
+      dbg("space change %s -> %s; last chord: %s", tostring(lastSpace), tostring(current), chordStr)
+      lastSpace = current
+    end
+  end)
+end
 
 local function modifiersToList(modifiers)
   local list = {}
@@ -320,7 +359,20 @@ spaceFocusOptionTap = hs.eventtap.new({
 
   local flags = event:getFlags()
   if event:getType() == hs.eventtap.event.types.keyDown then
+    if DEBUG_SPACE then
+      lastNumberChord = {
+        t = hs.timer.secondsSinceEpoch(),
+        index = index,
+        flags = flagsToString(flags),
+        action = "pass",
+      }
+      dbg("keyDown %s flags=%s", tostring(index), tostring(lastNumberChord.flags))
+    end
+
     if modifiersMatch(flags, MOVE_MODIFIERS) then
+      if lastNumberChord then
+        lastNumberChord.action = "move"
+      end
       local win = hs.window.frontmostWindow()
       if moveWindowToSpaceCrossDisplay(win, index) then
         return true
@@ -332,6 +384,10 @@ spaceFocusOptionTap = hs.eventtap.new({
 
     if not modifiersMatch(flags, FOCUS_MODIFIERS) then
       return false
+    end
+
+    if lastNumberChord then
+      lastNumberChord.action = "focus"
     end
 
     if pendingFocusTimer then
@@ -375,6 +431,9 @@ spaceFocusOptionTap = hs.eventtap.new({
   end
 
   if event:getType() == hs.eventtap.event.types.keyUp then
+    if DEBUG_SPACE then
+      dbg("keyUp %s flags=%s", tostring(index), flagsToString(flags))
+    end
     if pendingMove and pendingMove.targetIndex == index then
       finishWindowDrag(pendingMove)
       pendingMove = nil
