@@ -1,11 +1,14 @@
 local FOCUS_DELAY_SEC = 0.05
-local FOCUS_POLL_INTERVAL_SEC = 0.05
-local FOCUS_POLL_MAX_SEC = 1.0
+local FOCUS_RETRY_DELAY_SEC = 0.25
 local MOVE_PRE_SWITCH_DELAY_SEC = 0.2
 local MOVE_SWITCH_DELAY_SEC = 0.05
 local MOVE_DROP_DELAY_SEC = 0.2
 local MOVE_MAXIMIZE_DELAY_SEC = 0.02
 local MOVE_RETURN_TO_ORIGINAL = false
+local MOVE_DRAG_TIMEOUT_SEC = 1.0
+
+local homeDir = os.getenv("HOME") or ""
+local SAFE_MODE = homeDir ~= "" and hs.fs.attributes(homeDir .. "/.hammerspoon/SAFE_MODE") ~= nil
 
 local FOCUS_MODIFIERS = { alt = true }
 -- NOTE: Option+Shift+number is easy to hit accidentally (e.g. typing symbols
@@ -16,6 +19,19 @@ local MODIFIER_KEYS = { "alt", "cmd", "ctrl", "shift", "fn" }
 
 local DEBUG_SPACE = false
 local log = hs.logger.new("spaces", DEBUG_SPACE and "debug" or "warning")
+
+local suppressFocusUntil = 0
+local function nowSec()
+  return hs.timer.secondsSinceEpoch()
+end
+
+local function suppressFocusFor(sec)
+  suppressFocusUntil = math.max(suppressFocusUntil, nowSec() + sec)
+end
+
+local function isFocusSuppressed()
+  return nowSec() < suppressFocusUntil
+end
 
 local function dbg(fmt, ...)
   if not DEBUG_SPACE then
@@ -110,27 +126,6 @@ local function spaceInfo()
   return ordered, indexBy, displayBy
 end
 
-local function userSpacesForScreen(uuid)
-  if not uuid then
-    return {}
-  end
-
-  local spacesByScreen = hs.spaces.allSpaces()
-  local spaces = spacesByScreen[uuid] or {}
-  local ordered = {}
-  for _, space in ipairs(spaces) do
-    if hs.spaces.spaceType(space) == "user" then
-      ordered[#ordered + 1] = space
-    end
-  end
-  return ordered
-end
-
-local function spaceForIndexOnScreen(index, uuid)
-  local ordered = userSpacesForScreen(uuid)
-  return ordered[index]
-end
-
 local function spaceForIndex(index)
   local ordered, _, displayBy = spaceInfo()
   local space = ordered[index]
@@ -146,20 +141,29 @@ local function indexForSpace(spaceId)
 end
 
 local function switchToSpaceIndex(index)
+  -- We generate Option+number events to trigger macOS's Space switching. Those
+  -- synthetic events are also seen by our own eventtap; suppress focus logic so
+  -- moves don't schedule extra work.
+  suppressFocusFor(0.25)
   local keyDown = hs.eventtap.event.newKeyEvent(MOVE_SWITCH_KEYS, tostring(index), true)
   local keyUp = hs.eventtap.event.newKeyEvent(MOVE_SWITCH_KEYS, tostring(index), false)
   keyDown:post()
   keyUp:post()
 end
 
-local function focusWindowForSpace(space)
-  local windowIds = hs.spaces.windowsForSpace(space)
-  if not windowIds then
-    return false
+local function focusVisibleStandardWindow()
+  local focused = hs.window.focusedWindow()
+  if focused and focused:isStandard() then
+    return true
   end
 
-  for _, windowId in ipairs(windowIds) do
-    local win = hs.window.get(windowId)
+  local frontmost = hs.window.frontmostWindow()
+  if frontmost and frontmost:isStandard() then
+    frontmost:focus()
+    return true
+  end
+
+  for _, win in ipairs(hs.window.visibleWindows()) do
     if win and win:isStandard() then
       win:focus()
       return true
@@ -342,7 +346,7 @@ for i = 1, 9 do
 end
 
 local pendingFocusTimer = nil
-local pendingFocusPollTimer = nil
+local pendingFocusRetryTimer = nil
 local pendingMove = nil
 spaceFocusOptionTap = hs.eventtap.new({
   hs.eventtap.event.types.keyDown,
@@ -373,12 +377,35 @@ spaceFocusOptionTap = hs.eventtap.new({
       if lastNumberChord then
         lastNumberChord.action = "move"
       end
+
+      if pendingFocusTimer then
+        pendingFocusTimer:stop()
+        pendingFocusTimer = nil
+      end
+      if pendingFocusRetryTimer then
+        pendingFocusRetryTimer:stop()
+        pendingFocusRetryTimer = nil
+      end
+
       local win = hs.window.frontmostWindow()
       if moveWindowToSpaceCrossDisplay(win, index) then
         return true
       end
 
       pendingMove = startWindowDrag(win, index)
+      if pendingMove then
+        local moveRef = pendingMove
+        moveRef.timeoutTimer = hs.timer.doAfter(MOVE_DRAG_TIMEOUT_SEC, function()
+          if pendingMove ~= moveRef then
+            return
+          end
+          hs.eventtap.event.newMouseEvent(hs.eventtap.event.types.leftMouseUp, moveRef.dragPoint2):post()
+          if moveRef.originalMouse then
+            hs.mouse.absolutePosition(moveRef.originalMouse)
+          end
+          pendingMove = nil
+        end)
+      end
       return pendingMove ~= nil
     end
 
@@ -394,37 +421,27 @@ spaceFocusOptionTap = hs.eventtap.new({
       pendingFocusTimer:stop()
       pendingFocusTimer = nil
     end
-    if pendingFocusPollTimer then
-      pendingFocusPollTimer:stop()
-      pendingFocusPollTimer = nil
+    if pendingFocusRetryTimer then
+      pendingFocusRetryTimer:stop()
+      pendingFocusRetryTimer = nil
     end
 
-    local screen = hs.screen.mainScreen()
-    local screenUuid = screen and screen:getUUID() or nil
+    if isFocusSuppressed() then
+      return false
+    end
 
     pendingFocusTimer = hs.timer.doAfter(FOCUS_DELAY_SEC, function()
-      local startedAt = hs.timer.secondsSinceEpoch()
-      local targetSpace = spaceForIndexOnScreen(index, screenUuid) or spaceForIndex(index)
-      if not targetSpace then
+      if isFocusSuppressed() then
         return
       end
+      focusVisibleStandardWindow()
+    end)
 
-      pendingFocusPollTimer = hs.timer.doEvery(FOCUS_POLL_INTERVAL_SEC, function()
-        -- Only focus once the space switch actually completed. This prevents a
-        -- delayed focus from jumping to a different Space when indices differ
-        -- across displays.
-        if hs.spaces.focusedSpace() == targetSpace then
-          focusWindowForSpace(targetSpace)
-          pendingFocusPollTimer:stop()
-          pendingFocusPollTimer = nil
-          return
-        end
-
-        if (hs.timer.secondsSinceEpoch() - startedAt) >= FOCUS_POLL_MAX_SEC then
-          pendingFocusPollTimer:stop()
-          pendingFocusPollTimer = nil
-        end
-      end)
+    pendingFocusRetryTimer = hs.timer.doAfter(FOCUS_DELAY_SEC + FOCUS_RETRY_DELAY_SEC, function()
+      if isFocusSuppressed() then
+        return
+      end
+      focusVisibleStandardWindow()
     end)
 
     return false
@@ -435,6 +452,10 @@ spaceFocusOptionTap = hs.eventtap.new({
       dbg("keyUp %s flags=%s", tostring(index), flagsToString(flags))
     end
     if pendingMove and pendingMove.targetIndex == index then
+      if pendingMove.timeoutTimer then
+        pendingMove.timeoutTimer:stop()
+        pendingMove.timeoutTimer = nil
+      end
       finishWindowDrag(pendingMove)
       pendingMove = nil
       return true
@@ -444,11 +465,15 @@ spaceFocusOptionTap = hs.eventtap.new({
   return false
 end)
 
-spaceFocusOptionTap:start()
+if SAFE_MODE then
+  hs.alert.show("Hammerspoon SAFE_MODE: shortcuts disabled")
+else
+  spaceFocusOptionTap:start()
 
-hs.hotkey.bind({ "alt" }, "return", function()
-  local win = hs.window.frontmostWindow()
-  if win then
-    win:maximize()
-  end
-end)
+  hs.hotkey.bind({ "alt" }, "return", function()
+    local win = hs.window.frontmostWindow()
+    if win then
+      win:maximize()
+    end
+  end)
+end
