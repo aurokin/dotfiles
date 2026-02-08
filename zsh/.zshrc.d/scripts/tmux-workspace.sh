@@ -194,7 +194,12 @@ ensure_window() {
     return 0
   fi
 
-  tmux new-window -d -S -t "$session:" -n "$name" -c "$start_dir"
+  # Keep behavior consistent with tmux binds (prefix + g opens lazygit).
+  if [[ "$name" == "git" ]]; then
+    tmux new-window -d -S -t "$session:" -n "$name" -c "$start_dir" 'lazygit'
+  else
+    tmux new-window -d -S -t "$session:" -n "$name" -c "$start_dir"
+  fi
 }
 
 scaffold_workspace() {
