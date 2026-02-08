@@ -1,4 +1,6 @@
-local FOCUS_DELAY_SEC = 0.2
+local FOCUS_DELAY_SEC = 0.05
+local FOCUS_POLL_INTERVAL_SEC = 0.05
+local FOCUS_POLL_MAX_SEC = 1.0
 local MOVE_PRE_SWITCH_DELAY_SEC = 0.2
 local MOVE_SWITCH_DELAY_SEC = 0.05
 local MOVE_DROP_DELAY_SEC = 0.2
@@ -67,6 +69,27 @@ local function spaceInfo()
   end
 
   return ordered, indexBy, displayBy
+end
+
+local function userSpacesForScreen(uuid)
+  if not uuid then
+    return {}
+  end
+
+  local spacesByScreen = hs.spaces.allSpaces()
+  local spaces = spacesByScreen[uuid] or {}
+  local ordered = {}
+  for _, space in ipairs(spaces) do
+    if hs.spaces.spaceType(space) == "user" then
+      ordered[#ordered + 1] = space
+    end
+  end
+  return ordered
+end
+
+local function spaceForIndexOnScreen(index, uuid)
+  local ordered = userSpacesForScreen(uuid)
+  return ordered[index]
 end
 
 local function spaceForIndex(index)
@@ -280,6 +303,7 @@ for i = 1, 9 do
 end
 
 local pendingFocusTimer = nil
+local pendingFocusPollTimer = nil
 local pendingMove = nil
 spaceFocusOptionTap = hs.eventtap.new({
   hs.eventtap.event.types.keyDown,
@@ -314,12 +338,37 @@ spaceFocusOptionTap = hs.eventtap.new({
       pendingFocusTimer:stop()
       pendingFocusTimer = nil
     end
+    if pendingFocusPollTimer then
+      pendingFocusPollTimer:stop()
+      pendingFocusPollTimer = nil
+    end
+
+    local screen = hs.screen.mainScreen()
+    local screenUuid = screen and screen:getUUID() or nil
 
     pendingFocusTimer = hs.timer.doAfter(FOCUS_DELAY_SEC, function()
-      local space = spaceForIndex(index)
-      if space then
-        focusWindowForSpace(space)
+      local startedAt = hs.timer.secondsSinceEpoch()
+      local targetSpace = spaceForIndexOnScreen(index, screenUuid) or spaceForIndex(index)
+      if not targetSpace then
+        return
       end
+
+      pendingFocusPollTimer = hs.timer.doEvery(FOCUS_POLL_INTERVAL_SEC, function()
+        -- Only focus once the space switch actually completed. This prevents a
+        -- delayed focus from jumping to a different Space when indices differ
+        -- across displays.
+        if hs.spaces.focusedSpace() == targetSpace then
+          focusWindowForSpace(targetSpace)
+          pendingFocusPollTimer:stop()
+          pendingFocusPollTimer = nil
+          return
+        end
+
+        if (hs.timer.secondsSinceEpoch() - startedAt) >= FOCUS_POLL_MAX_SEC then
+          pendingFocusPollTimer:stop()
+          pendingFocusPollTimer = nil
+        end
+      end)
     end)
 
     return false
