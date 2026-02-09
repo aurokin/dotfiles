@@ -1,6 +1,7 @@
 #!/bin/bash
 
 brew install --cask alacritty
+brew install --cask ghostty
 brew install --cask betterdisplay
 brew install --cask claude-code
 brew install --cask codex

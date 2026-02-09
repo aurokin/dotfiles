@@ -23,7 +23,7 @@ if [[ -e "$zshrcd" && ! -d "$zshrcd" ]]; then
 fi
 
 stow -R --no-folding zsh
-stow -R tmux git alacritty nvim karabiner lazygit idea bat fonts hammerspoon mise
+stow -R tmux git alacritty ghostty nvim karabiner lazygit idea bat fonts hammerspoon mise
 
 # Keep this behavior: rebuilding the bat cache is part of linking.
 bat cache --build

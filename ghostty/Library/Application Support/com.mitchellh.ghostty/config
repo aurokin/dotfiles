@@ -1,0 +1,10 @@
+# Ghostty on macOS prefers this config path:
+#   ~/Library/Application Support/com.mitchellh.ghostty/config
+#
+# Keep the real config stowed in XDG:
+#   ~/.config/ghostty/config
+#
+# This file just delegates so Ghostty always finds your stowed config even if
+# it prefers the macOS path.
+config-file = "../../../.config/ghostty/config"
+

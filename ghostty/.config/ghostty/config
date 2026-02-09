@@ -1,0 +1,18 @@
+# Ghostty config
+#
+# Upstream docs: https://ghostty.org/docs/config
+
+theme = "TokyoNight Night"
+
+# Match Alacritty settings in this repo.
+font-family = "RobotoMono Nerd Font"
+font-size = 15
+
+window-padding-x = 10
+window-padding-y = 10
+
+background-opacity = 0.9
+
+# Match the Alacritty Tokyo Night background override in this repo.
+background = #101217
+cursor-text = #101217
