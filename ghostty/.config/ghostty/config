@@ -1,0 +1,29 @@
+# Ghostty config
+#
+# Upstream docs: https://ghostty.org/docs/config
+
+theme = "TokyoNight Night"
+
+# Match Alacritty settings in this repo.
+font-family = "RobotoMono Nerd Font"
+font-size = 15
+
+# Explicitly select styles (Nerd Fonts sometimes use abbreviated style names).
+font-style = "Regular"
+font-style-bold = "Bold"
+font-style-italic = "Italic"
+font-style-bold-italic = "Bold Italic"
+
+# Ghostty can render some fonts a bit lighter than other terminals on macOS.
+# Enable slight stroke thickening to better match Alacritty's perceived weight.
+font-thicken = true
+font-thicken-strength = 80
+
+window-padding-x = 10
+window-padding-y = 10
+
+background-opacity = 0.9
+
+# Match the Alacritty Tokyo Night background override in this repo.
+background = #101217
+cursor-text = #101217
