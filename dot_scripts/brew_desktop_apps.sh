@@ -1,5 +1,6 @@
 #!/bin/bash
 
+brew install --cask android-platform-tools
 brew install --cask alacritty
 brew install --cask betterdisplay
 brew install --cask claude-code
