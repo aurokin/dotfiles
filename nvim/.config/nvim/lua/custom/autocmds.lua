@@ -1,3 +1,10 @@
+-- [[ Dotenv filetype ]]
+vim.filetype.add({
+    pattern = {
+        ['.*%.env%..+'] = 'sh',
+    },
+})
+
 -- [[ Stay Centered ]]
 local stay_centered_group = vim.api.nvim_create_augroup('StayCentered', { clear = true })
 vim.api.nvim_create_autocmd({ 'CursorMoved' }, {
