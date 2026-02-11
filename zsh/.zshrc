@@ -44,6 +44,9 @@ if [[ -n "$HOMEBREW_PREFIX" ]]; then
 fi
 autoload -U promptinit; promptinit
 prompt pure
+if [[ -n ${prompt_pure_state[username]-} ]]; then
+    prompt_pure_state[username]='%F{243}%n%f%F{243}@%m%f'
+fi
 
 export PATH="$HOME/.bin:$HOME/.local/bin:$PATH"
 
@@ -69,7 +72,6 @@ alias lg="lazygit"
 alias rr="rm -rf"
 alias twm="source ~/.zshrc.d/scripts/twigsmux.sh"
 alias agents="$HOME/.zshrc.d/scripts/find-agents-tmux.sh"
-alias zshrd="source ~/.zshrc"
 alias pscripts="$HOME/.zshrc.d/scripts/list-package-json-scripts.sh"
 
 # Bat Tokyo Night
@@ -100,6 +102,10 @@ fi
 
 if [[ -f "$KEYS_FILE" ]]; then
     source "$KEYS_FILE"
+fi
+
+if [[ -f "$HOME/.zshrc.d/scripts/tmux-reload.zsh" ]]; then
+    source "$HOME/.zshrc.d/scripts/tmux-reload.zsh"
 fi
 
 # Mise
