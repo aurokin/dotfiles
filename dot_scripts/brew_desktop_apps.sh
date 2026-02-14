@@ -18,6 +18,7 @@ brew install --cask karabiner-elements
 brew install --cask raycast
 brew install --cask discord
 brew install --cask moonlight
+brew install --cask openmtp
 brew install --cask steam
 brew install --cask retroarch
 brew install --cask the-unarchiver
