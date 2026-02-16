@@ -1,0 +1,8 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": "allow",
+  "keybinds": {
+    "editor_open": "ctrl+g,<leader>e",
+    "messages_first": "home"
+  }
+}
