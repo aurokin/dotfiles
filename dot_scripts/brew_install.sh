@@ -33,6 +33,7 @@ brew install steipete/tap/goplaces
 brew install zsh
 brew install pure
 brew install wget
+brew install rsync
 brew install tmux
 brew install tpm
 brew install bat
