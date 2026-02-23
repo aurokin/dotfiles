@@ -97,10 +97,11 @@ extract_codex_activity_title() {
   local line=""
   local title=""
   local trimmed=""
-  local candidate=""
-  local re='^(.+)[[:space:]]*\([^)]*esc[[:space:]]+to[[:space:]]+(interrupt|cancel|stop)[^)]*\)[[:space:]]*$'
+  # Require a timer token plus "• esc to ..." to avoid matching arbitrary text
+  # like regex/docs snippets that mention "esc to interrupt".
+  local re='^(.+)[[:space:]]*\([^)]*[0-9]+[smhd][^)]*[•·][[:space:]]*esc[[:space:]]+to[[:space:]]+(interrupt|cancel|stop)[^)]*\)[[:space:]]*(·.*)?$'
 
-  # Scan top-down and keep the most recent match; this avoids buffering the whole sample.
+  # Scan bottom-up so recent status lines win.
   while IFS= read -r line; do
     [[ -z "$line" ]] && continue
 
@@ -110,12 +111,17 @@ extract_codex_activity_title() {
     trimmed="$(strip_leading_glyphs "$trimmed")"
     trimmed="$(trim_ws "$trimmed")"
 
+    # Ignore grep/rg line-number prefixes like "155:..."
+    if [[ "$trimmed" =~ ^[0-9]+: ]]; then
+      continue
+    fi
+
     # Codex often prints: "<activity title> (<time> • esc to interrupt)"
     if [[ "$trimmed" =~ $re ]]; then
-      candidate="$(trim_ws "${BASH_REMATCH[1]}")"
-      [[ -n "$candidate" ]] && title="$candidate"
+      title="$(trim_ws "${BASH_REMATCH[1]}")"
+      [[ -n "$title" ]] && break
     fi
-  done <<< "$sample"
+  done < <(sample_lines_bottom_up "$sample")
 
   printf '%s' "$title"
 }
@@ -134,6 +140,21 @@ trim_ws() {
   s="${s#"${s%%[![:space:]]*}"}"
   s="${s%"${s##*[![:space:]]}"}"
   printf '%s' "$s"
+}
+
+sample_lines_bottom_up() {
+  local sample="$1"
+  local lines=()
+  local line=""
+  local i=0
+
+  while IFS= read -r line; do
+    lines+=("$line")
+  done <<< "$sample"
+
+  for ((i=${#lines[@]}-1; i>=0; i--)); do
+    printf '%s\n' "${lines[$i]}"
+  done
 }
 
 display_title_for_pane() {
@@ -222,7 +243,8 @@ pane_delim=$'\x1f'
 pane_list_format="#{session_name}${pane_delim}#{window_index}${pane_delim}#{pane_index}${pane_delim}#{pane_id}${pane_delim}#{pane_pid}${pane_delim}#{pane_current_command}${pane_delim}#{pane_title}${pane_delim}#{pane_tty}"
 
 pattern="${TMUX_AGENTS_PATTERN:-$pattern_default}"
-sample_lines="${TMUX_AGENTS_SAMPLE_LINES:-120}"
+sample_lines="${TMUX_AGENTS_SAMPLE_LINES:-30}"
+codex_status_tail_lines="${TMUX_AGENTS_CODEX_STATUS_TAIL_LINES:-20}"
 sample_regex="${TMUX_AGENTS_SAMPLE_REGEX:-$sample_regex_default}"
 cmd_allowlist="${TMUX_AGENTS_CMD_ALLOWLIST:-$cmd_allowlist_default}"
 allowlist_items=()
@@ -243,11 +265,11 @@ Usage: find-agents-tmux.sh [--json] [--debug] [--deep]
 Environment:
   TMUX_AGENTS_PROVIDERS       Comma or space-separated list (default: "opencode,gemini,codex,claude")
   TMUX_AGENTS_PATTERN         Regex to identify agent panes (default: "opencode|gemini|codex|claude")
-  TMUX_AGENTS_SAMPLE_LINES    Lines to sample from pane (default: 120)
+  TMUX_AGENTS_SAMPLE_LINES    Lines to sample from visible pane tail (default: 30)
+  TMUX_AGENTS_CODEX_STATUS_TAIL_LINES Lines from visible codex pane to scan for active status (default: 20)
   TMUX_AGENTS_SAMPLE_REGEX    Regex to detect "building" state (default: "esc to cancel|esc to interrupt|esc to stop")
   TMUX_AGENTS_OPENCODE_SAMPLE_LINES Lines to sample for opencode footer detection (default: 12)
   TMUX_AGENTS_OPENCODE_FOOTER_BUILD_REGEX Regex to detect opencode "building" from footer (default: "^[[:space:]]*[^[:alnum:][:space:]]{2,}[[:space:]]+esc interrupt")
-  TMUX_AGENTS_CLAUDE_SAMPLE_LINES Lines to sample for claude build detection (default: 40)
   TMUX_AGENTS_CLAUDE_TITLE_BUILD_REGEX Regex to detect claude "building" from pane title (default: "^[[:space:]]*[braille-spinner][[:space:]]+")
   TMUX_AGENTS_CLAUDE_BUILD_REGEX  Regex to detect claude "building" (default: "^[[:space:]]*esc to interrupt[[:space:]]*$")
   TMUX_AGENTS_GEMINI_BUILD_REGEX  Regex to detect gemini "building" (default: "\(esc to cancel, [0-9]+[smhd]\)")
@@ -411,12 +433,13 @@ sample_matches_regex() {
   shopt -s nocasematch
 
   local line=""
+  # Scan bottom-up so we prioritize the most recent pane output.
   while IFS= read -r line; do
     if [[ "$line" =~ $regex ]]; then
       ((nocase_was_set)) || shopt -u nocasematch
       return 0
     fi
-  done <<< "$sample"
+  done < <(sample_lines_bottom_up "$sample")
 
   ((nocase_was_set)) || shopt -u nocasematch
   return 1
@@ -437,7 +460,24 @@ tmux_capture_pane_sample() {
   local pane_id="$1"
   local lines="$2"
   [[ -z "$pane_id" || -z "$lines" ]] && return 1
-  tmux capture-pane -p -t "$pane_id" -S "-$lines" 2>/dev/null || true
+  local sample=""
+  sample="$(tmux_capture_pane_visible "$pane_id")"
+  if [[ -z "$sample" ]]; then
+    printf ''
+    return 0
+  fi
+
+  if [[ "$lines" =~ ^[0-9]+$ ]] && ((lines > 0)); then
+    printf '%s\n' "$sample" | tail -n "$lines"
+  else
+    printf '%s' "$sample"
+  fi
+}
+
+tmux_capture_pane_visible() {
+  local pane_id="$1"
+  [[ -z "$pane_id" ]] && return 1
+  tmux capture-pane -p -t "$pane_id" 2>/dev/null || true
 }
 
 opencode_is_building_from_sample() {
@@ -523,17 +563,15 @@ extract_last_line_containing() {
   [[ -z "$sample" || -z "$needle" ]] && return 1
 
   local line=""
-  local last=""
   while IFS= read -r line; do
     [[ -z "$line" ]] && continue
     if [[ "$line" == *"$needle"* ]]; then
-      last="$line"
+      printf '%s' "$(trim_ws "$line")"
+      return 0
     fi
-  done <<< "$sample"
+  done < <(sample_lines_bottom_up "$sample")
 
-  [[ -n "$last" ]] || return 1
-  printf '%s' "$(trim_ws "$last")"
-  return 0
+  return 1
 }
 
 ps_state_is_active() {
@@ -763,7 +801,7 @@ while IFS="$pane_delim" read -r session win_idx pane_idx pane_id pane_pid pane_c
     pane_sample=""
     case "$pane_provider" in
       codex)
-        pane_sample="$(tmux_capture_pane_sample "$pane_id" "$sample_lines")"
+        pane_sample="$(tmux_capture_pane_sample "$pane_id" "$codex_status_tail_lines")"
         if [[ -n "$pane_sample" ]]; then
           pane_activity_title="$(extract_codex_activity_title "$pane_sample")"
           if [[ -n "$pane_activity_title" ]]; then
@@ -778,8 +816,7 @@ while IFS="$pane_delim" read -r session win_idx pane_idx pane_id pane_pid pane_c
         if claude_is_building_from_title_and_sample "$pane_title" "" claude_source claude_regex; then
           pane_building=1
         else
-          claude_sample_lines="${TMUX_AGENTS_CLAUDE_SAMPLE_LINES:-40}"
-          pane_sample="$(tmux_capture_pane_sample "$pane_id" "$claude_sample_lines")"
+          pane_sample="$(tmux_capture_pane_sample "$pane_id" "$sample_lines")"
           if [[ -n "$pane_sample" ]] && claude_is_building_from_title_and_sample "$pane_title" "$pane_sample" claude_source claude_regex; then
             pane_building=1
           fi
