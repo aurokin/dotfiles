@@ -10,3 +10,6 @@ if [[ -d "$npm_global_bin" ]]; then
     *) export PATH="$PATH:$npm_global_bin" ;;
   esac
 fi
+
+export DISPLAY=:0
+export XAUTHORITY="$HOME/.Xauthority"
