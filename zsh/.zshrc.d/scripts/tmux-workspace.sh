@@ -114,10 +114,10 @@ set_session_working_dir() {
   local session="$1"
   local start_dir="$2"
 
-  # Keep tmux's idea of the session directory in sync with where you invoked
-  # the scaffold from, so new windows/panes inherit it without sending `cd`
-  # into any existing panes.
-  tmux set-option -t "$session" default-path "$start_dir" 2>/dev/null || true
+  # tmux 3.x no longer has a `default-path` option. Use attach-session -c to
+  # set the session working directory, which controls where plain `new-window`
+  # commands (for example prefix + c) start.
+  tmux attach-session -t "$session" -c "$start_dir" 2>/dev/null || true
 }
 
 list_windows() {
