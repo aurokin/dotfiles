@@ -13,3 +13,7 @@ fi
 
 export DISPLAY=:0
 export XAUTHORITY="$HOME/.Xauthority"
+
+clip_haste() {
+  ssh auro@192.168.50.20 'schtasks /Run /TN clip_haste_push'
+}
