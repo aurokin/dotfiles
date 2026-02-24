@@ -3,8 +3,8 @@
 This file defines repository-specific instructions for automation and agents.
 
 ## Structure
-- Top-level stow packages: `alacritty`, `bat`, `codex`, `fonts`, `git`, `ghostty`, `hammerspoon`, `idea`, `karabiner`, `lazygit`, `mise`, `nvim`, `opencode`, `tmux`, `zsh`.
-- Packages that map to `~/.config`: `alacritty/.config`, `bat/.config`, `ghostty/.config`, `karabiner/.config`, `lazygit/.config`, `mise/.config`, `nvim/.config`, `opencode/.config`.
+- Top-level stow packages: `alacritty`, `bat`, `codex`, `fonts`, `git`, `ghostty`, `hammerspoon`, `idea`, `karabiner`, `lazygit`, `mise`, `nvim`, `opencode`, `tmux`, `wezterm`, `zsh`.
+- Packages that map to `~/.config`: `alacritty/.config`, `bat/.config`, `ghostty/.config`, `karabiner/.config`, `lazygit/.config`, `mise/.config`, `nvim/.config`, `opencode/.config`, `wezterm/.config`.
 - Other key mappings: `codex/.codex`, `fonts/.fonts`, `git/.gitconfig`, `hammerspoon/.hammerspoon`, `idea/.ideavimrc`, `tmux/.tmux.conf`, `zsh/.zshrc`.
 - `dot_scripts/` holds setup and install scripts (brew/apt/osx/linux/etc.) and is not stowed.
 
