@@ -23,5 +23,5 @@ clip_haste() {
 }
 
 clip_luma() {
-  "$HOME/code/scripts/luma/send-clipboard-to-ssh-macos.sh" --target auro@luma.home.arpa "$@"
+  ssh auro@luma.home.arpa '~/code/scripts/luma/send-clipboard-to-ssh-macos.sh --target auro@bront.home.arpa'
 }
