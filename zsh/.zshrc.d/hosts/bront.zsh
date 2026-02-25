@@ -14,6 +14,14 @@ fi
 export DISPLAY=:0
 export XAUTHORITY="$HOME/.Xauthority"
 
+clip_bront() {
+  ssh auro@haste.home.arpa 'schtasks /Run /TN clip_haste_push'
+}
+
 clip_haste() {
-  ssh auro@192.168.50.20 'schtasks /Run /TN clip_haste_push'
+  clip_bront "$@"
+}
+
+clip_luma() {
+  "$HOME/code/scripts/luma/send-clipboard-to-ssh-macos.sh" --target auro@luma.home.arpa "$@"
 }
