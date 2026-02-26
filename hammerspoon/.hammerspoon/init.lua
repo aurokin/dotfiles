@@ -1,5 +1,6 @@
-local FOCUS_DELAY_SEC = 0.05
-local FOCUS_RETRY_DELAY_SEC = 0.25
+local FOCUS_DELAY_SEC = 0.01
+local FOCUS_POLL_INTERVAL_SEC = 0.02
+local FOCUS_POLL_MAX_SEC = 1.0
 local MOVE_PRE_SWITCH_DELAY_SEC = 0.2
 local MOVE_SWITCH_DELAY_SEC = 0.05
 local MOVE_DROP_DELAY_SEC = 0.2
@@ -9,6 +10,8 @@ local MOVE_DRAG_TIMEOUT_SEC = 1.0
 
 local homeDir = os.getenv("HOME") or ""
 local SAFE_MODE = homeDir ~= "" and hs.fs.attributes(homeDir .. "/.hammerspoon/SAFE_MODE") ~= nil
+local ENABLE_SPACE_ACTION_LOG = false
+local ACTION_LOG_FILE = homeDir ~= "" and (homeDir .. "/.hammerspoon/space-actions.log") or nil
 
 local FOCUS_MODIFIERS = { alt = true }
 -- NOTE: Option+Shift+number is easy to hit accidentally (e.g. typing symbols
@@ -19,6 +22,33 @@ local MODIFIER_KEYS = { "alt", "cmd", "ctrl", "shift", "fn" }
 
 local DEBUG_SPACE = false
 local log = hs.logger.new("spaces", DEBUG_SPACE and "debug" or "warning")
+local pendingFocusTimer = nil
+local pendingFocusPollTimer = nil
+local pendingMove = nil
+local focusRequestSeq = 0
+
+local function writeActionLog(message)
+  if not ENABLE_SPACE_ACTION_LOG or not ACTION_LOG_FILE then
+    return
+  end
+
+  local file = io.open(ACTION_LOG_FILE, "a")
+  if not file then
+    return
+  end
+
+  file:write(string.format("%s %s\n", os.date("%Y-%m-%d %H:%M:%S"), message))
+  file:close()
+end
+
+local function activeSpacesToString(activeSpaces)
+  local parts = {}
+  for uuid, spaceId in pairs(activeSpaces or {}) do
+    parts[#parts + 1] = string.format("%s=%s", tostring(uuid), tostring(spaceId))
+  end
+  table.sort(parts)
+  return table.concat(parts, ", ")
+end
 
 local suppressFocusUntil = 0
 local function nowSec()
@@ -126,7 +156,89 @@ local function spaceInfo()
   return ordered, indexBy, displayBy
 end
 
+local function readSpacesPlistJson()
+  if homeDir == "" then
+    return nil
+  end
+
+  local plistPath = homeDir .. "/Library/Preferences/com.apple.spaces.plist"
+  local cmd = string.format("/usr/bin/plutil -convert json -o - %q 2>/dev/null", plistPath)
+  local pipe = io.popen(cmd)
+  if not pipe then
+    return nil
+  end
+
+  local out = pipe:read("*a")
+  pipe:close()
+  if not out or out == "" then
+    return nil
+  end
+
+  return hs.json.decode(out)
+end
+
+local function nativeDesktopOrder()
+  local decoded = readSpacesPlistJson()
+  if not decoded then
+    return nil
+  end
+
+  local spacesConfig = decoded["SpacesDisplayConfiguration"]
+  local managementData = spacesConfig and spacesConfig["Management Data"]
+  local monitors = managementData and managementData["Monitors"]
+  if type(monitors) ~= "table" then
+    return nil
+  end
+
+  local ordered = {}
+  for _, monitor in ipairs(monitors) do
+    local displayId = monitor["Display Identifier"]
+    for _, space in ipairs(monitor["Spaces"] or {}) do
+      local spaceId = space["ManagedSpaceID"]
+      if spaceId and hs.spaces.spaceType(spaceId) == "user" then
+        local displayUuid = hs.spaces.spaceDisplay(spaceId)
+        if not displayUuid and displayId ~= "Main" then
+          displayUuid = displayId
+        end
+        ordered[#ordered + 1] = {
+          space = spaceId,
+          display = displayUuid,
+        }
+      end
+    end
+  end
+
+  if #ordered == 0 then
+    return nil
+  end
+
+  return ordered
+end
+
+local function orderedSpacesToString()
+  local native = nativeDesktopOrder()
+  if native then
+    local parts = {}
+    for i, entry in ipairs(native) do
+      parts[#parts + 1] = string.format("%d:%s@%s", i, tostring(entry.space), tostring(entry.display))
+    end
+    return table.concat(parts, " ")
+  end
+
+  local ordered, _, displayBy = spaceInfo()
+  local parts = {}
+  for i, spaceId in ipairs(ordered) do
+    parts[#parts + 1] = string.format("%d:%s@%s", i, tostring(spaceId), tostring(displayBy[spaceId]))
+  end
+  return table.concat(parts, " ")
+end
+
 local function spaceForIndex(index)
+  local native = nativeDesktopOrder()
+  if native and native[index] then
+    return native[index].space, native[index].display
+  end
+
   local ordered, _, displayBy = spaceInfo()
   local space = ordered[index]
   if not space then
@@ -151,6 +263,23 @@ local function switchToSpaceIndex(index)
   keyUp:post()
 end
 
+local function focusWindowForSpace(space)
+  local windowIds = hs.spaces.windowsForSpace(space)
+  if not windowIds then
+    return false
+  end
+
+  for _, windowId in ipairs(windowIds) do
+    local win = hs.window.get(windowId)
+    if win and win:isStandard() then
+      win:focus()
+      return true
+    end
+  end
+
+  return false
+end
+
 local function focusVisibleStandardWindow()
   local focused = hs.window.focusedWindow()
   if focused and focused:isStandard() then
@@ -171,6 +300,83 @@ local function focusVisibleStandardWindow()
   end
 
   return false
+end
+
+local function focusVisibleStandardWindowOnDisplay(displayUuid)
+  if not displayUuid then
+    return false
+  end
+
+  for _, win in ipairs(hs.window.visibleWindows()) do
+    if win and win:isStandard() then
+      local screen = win:screen()
+      if screen and screen:getUUID() == displayUuid then
+        win:focus()
+        return true
+      end
+    end
+  end
+
+  return false
+end
+
+local function clickDisplay(displayUuid)
+  if not displayUuid then
+    return false
+  end
+
+  local screen = hs.screen.find(displayUuid)
+  if not screen then
+    return false
+  end
+
+  local frame = screen:fullFrame()
+  local clickPoint = {
+    x = math.floor(frame.x + frame.w / 2),
+    y = math.floor(frame.y + 8),
+  }
+  local originalMouse = hs.mouse.absolutePosition()
+
+  hs.mouse.absolutePosition(clickPoint)
+  hs.eventtap.event.newMouseEvent(hs.eventtap.event.types.leftMouseDown, clickPoint):post()
+  hs.eventtap.event.newMouseEvent(hs.eventtap.event.types.leftMouseUp, clickPoint):post()
+  hs.mouse.absolutePosition(originalMouse)
+  return true
+end
+
+local function focusSpaceAndDisplay(spaceId, displayUuid)
+  local focusedWin = hs.window.focusedWindow()
+  local focusedScreen = focusedWin and focusedWin:screen() or nil
+  local focusedDisplay = focusedScreen and focusedScreen:getUUID() or nil
+
+  -- Prioritize selecting the display first; this is noticeably faster than
+  -- focusing by window ID when the target space is already active elsewhere.
+  if displayUuid and focusedDisplay ~= displayUuid then
+    if clickDisplay(displayUuid) then
+      return "display-click"
+    end
+  end
+
+  local focusBySpace = focusWindowForSpace(spaceId)
+  if focusBySpace then
+    return "space-window"
+  end
+
+  local focusByDisplay = focusVisibleStandardWindowOnDisplay(displayUuid)
+  if focusByDisplay then
+    return "display-window"
+  end
+
+  local clickedDisplay = clickDisplay(displayUuid)
+  if clickedDisplay then
+    return "display-click"
+  end
+
+  if focusVisibleStandardWindow() then
+    return "fallback-window"
+  end
+
+  return "none"
 end
 
 local function maximizeWindowById(winId, winPid, winTitle)
@@ -340,14 +546,144 @@ local function moveWindowToSpaceCrossDisplay(win, targetIndex)
   return true
 end
 
+local function stopPendingFocusTimers()
+  focusRequestSeq = focusRequestSeq + 1
+  if pendingFocusTimer then
+    pendingFocusTimer:stop()
+    pendingFocusTimer = nil
+  end
+  if pendingFocusPollTimer then
+    pendingFocusPollTimer:stop()
+    pendingFocusPollTimer = nil
+  end
+end
+
+local function changedDisplaySpace(previousActive, currentActive)
+  for displayUuid, spaceId in pairs(currentActive or {}) do
+    if previousActive[displayUuid] ~= spaceId then
+      return displayUuid, spaceId, previousActive[displayUuid]
+    end
+  end
+  return nil, nil, nil
+end
+
+local function followNativeSpaceSwitch(requestId, index, flags, baselineFocusedSpace, baselineActiveSpaces)
+  local baselineDisplay = baselineFocusedSpace and hs.spaces.spaceDisplay(baselineFocusedSpace) or nil
+  local mappedSpace, mappedDisplay = spaceForIndex(index)
+
+  writeActionLog(string.format(
+    "focus begin index=%d flags=%s baselineFocused=%s baselineDisplay=%s mappedSpace=%s mappedDisplay=%s ordered=[%s] active={%s}",
+    index,
+    tostring(flags),
+    tostring(baselineFocusedSpace),
+    tostring(baselineDisplay),
+    tostring(mappedSpace),
+    tostring(mappedDisplay),
+    orderedSpacesToString(),
+    activeSpacesToString(baselineActiveSpaces)
+  ))
+
+  local startedAt = hs.timer.secondsSinceEpoch()
+  local attempts = 0
+
+  pendingFocusPollTimer = hs.timer.doEvery(FOCUS_POLL_INTERVAL_SEC, function()
+    if requestId ~= focusRequestSeq then
+      stopPendingFocusTimers()
+      return
+    end
+
+    attempts = attempts + 1
+    local nowFocused = hs.spaces.focusedSpace()
+    local nowActive = hs.spaces.activeSpaces() or {}
+    local changedDisplay, changedSpace, previousSpace = changedDisplaySpace(baselineActiveSpaces, nowActive)
+    local mappedIsAlreadyActive = mappedSpace and mappedDisplay and nowActive[mappedDisplay] == mappedSpace
+
+    if attempts <= 8 or attempts % 5 == 0 then
+      writeActionLog(string.format(
+        "focus poll index=%d attempt=%d focused=%s changedDisplay=%s changedSpace=%s previousSpace=%s mappedActive=%s",
+        index,
+        attempts,
+        tostring(nowFocused),
+        tostring(changedDisplay),
+        tostring(changedSpace),
+        tostring(previousSpace),
+        tostring(mappedIsAlreadyActive)
+      ))
+    end
+
+    if changedDisplay and changedSpace then
+      local mode = focusSpaceAndDisplay(changedSpace, changedDisplay)
+      writeActionLog(string.format(
+        "focus done index=%d mode=%s changedDisplay=%s changedSpace=%s focused=%s active={%s}",
+        index,
+        mode,
+        tostring(changedDisplay),
+        tostring(changedSpace),
+        tostring(hs.spaces.focusedSpace()),
+        activeSpacesToString(hs.spaces.activeSpaces() or {})
+      ))
+      stopPendingFocusTimers()
+      return
+    end
+
+    -- Native shortcut sometimes keeps activeSpaces unchanged when the target
+    -- desktop is already active on another display. In that case, select the
+    -- mapped display directly.
+    if mappedIsAlreadyActive then
+      local mode = focusSpaceAndDisplay(mappedSpace, mappedDisplay)
+      writeActionLog(string.format(
+        "focus done-mapped index=%d mode=%s mappedDisplay=%s mappedSpace=%s focused=%s active={%s}",
+        index,
+        mode,
+        tostring(mappedDisplay),
+        tostring(mappedSpace),
+        tostring(hs.spaces.focusedSpace()),
+        activeSpacesToString(hs.spaces.activeSpaces() or {})
+      ))
+      stopPendingFocusTimers()
+      return
+    end
+
+    if nowFocused and nowFocused ~= baselineFocusedSpace then
+      local focusedDisplay = hs.spaces.spaceDisplay(nowFocused)
+      local mode = focusSpaceAndDisplay(nowFocused, focusedDisplay)
+      writeActionLog(string.format(
+        "focus done-fallback index=%d mode=%s focused=%s focusedDisplay=%s active={%s}",
+        index,
+        mode,
+        tostring(nowFocused),
+        tostring(focusedDisplay),
+        activeSpacesToString(hs.spaces.activeSpaces() or {})
+      ))
+      stopPendingFocusTimers()
+      return
+    end
+
+    local elapsed = hs.timer.secondsSinceEpoch() - startedAt
+    if elapsed >= FOCUS_POLL_MAX_SEC then
+      local timeoutMode = "none"
+      if mappedSpace and mappedDisplay then
+        timeoutMode = focusSpaceAndDisplay(mappedSpace, mappedDisplay)
+      end
+      writeActionLog(string.format(
+        "focus timeout index=%d mode=%s focused=%s active={%s}",
+        index,
+        timeoutMode,
+        tostring(hs.spaces.focusedSpace()),
+        activeSpacesToString(hs.spaces.activeSpaces() or {})
+      ))
+      stopPendingFocusTimers()
+    end
+  end)
+
+  return true
+end
+
 local keycodeToIndex = {}
 for i = 1, 9 do
   keycodeToIndex[hs.keycodes.map[tostring(i)]] = i
 end
 
-local pendingFocusTimer = nil
-local pendingFocusRetryTimer = nil
-local pendingMove = nil
 spaceFocusOptionTap = hs.eventtap.new({
   hs.eventtap.event.types.keyDown,
   hs.eventtap.event.types.keyUp,
@@ -378,21 +714,17 @@ spaceFocusOptionTap = hs.eventtap.new({
         lastNumberChord.action = "move"
       end
 
-      if pendingFocusTimer then
-        pendingFocusTimer:stop()
-        pendingFocusTimer = nil
-      end
-      if pendingFocusRetryTimer then
-        pendingFocusRetryTimer:stop()
-        pendingFocusRetryTimer = nil
-      end
+      writeActionLog(string.format("move keyDown index=%d flags=%s", index, flagsToString(flags)))
+      stopPendingFocusTimers()
 
       local win = hs.window.frontmostWindow()
       if moveWindowToSpaceCrossDisplay(win, index) then
+        writeActionLog(string.format("move cross-display index=%d result=true", index))
         return true
       end
 
       pendingMove = startWindowDrag(win, index)
+      writeActionLog(string.format("move drag-start index=%d result=%s", index, tostring(pendingMove ~= nil)))
       if pendingMove then
         local moveRef = pendingMove
         moveRef.timeoutTimer = hs.timer.doAfter(MOVE_DRAG_TIMEOUT_SEC, function()
@@ -417,33 +749,47 @@ spaceFocusOptionTap = hs.eventtap.new({
       lastNumberChord.action = "focus"
     end
 
-    if pendingFocusTimer then
-      pendingFocusTimer:stop()
-      pendingFocusTimer = nil
-    end
-    if pendingFocusRetryTimer then
-      pendingFocusRetryTimer:stop()
-      pendingFocusRetryTimer = nil
-    end
+    stopPendingFocusTimers()
+    writeActionLog(string.format("focus keyDown index=%d flags=%s", index, flagsToString(flags)))
 
     if isFocusSuppressed() then
+      writeActionLog(string.format("focus keyDown index=%d suppressed=true", index))
+      return false
+    end
+
+    local baselineFocusedSpace = hs.spaces.focusedSpace()
+    local baselineActiveSpaces = hs.spaces.activeSpaces() or {}
+    local mappedSpace, mappedDisplay = spaceForIndex(index)
+    local baselineDisplay = baselineFocusedSpace and hs.spaces.spaceDisplay(baselineFocusedSpace) or nil
+    local requestId = focusRequestSeq
+
+    if mappedSpace and mappedDisplay and mappedDisplay ~= baselineDisplay and baselineActiveSpaces[mappedDisplay] == mappedSpace then
+      local mode = focusSpaceAndDisplay(mappedSpace, mappedDisplay)
+      writeActionLog(string.format(
+        "focus instant-mapped index=%d mode=%s mappedDisplay=%s mappedSpace=%s baselineDisplay=%s",
+        index,
+        mode,
+        tostring(mappedDisplay),
+        tostring(mappedSpace),
+        tostring(baselineDisplay)
+      ))
       return false
     end
 
     pendingFocusTimer = hs.timer.doAfter(FOCUS_DELAY_SEC, function()
-      if isFocusSuppressed() then
+      if requestId ~= focusRequestSeq then
         return
       end
-      focusVisibleStandardWindow()
-    end)
-
-    pendingFocusRetryTimer = hs.timer.doAfter(FOCUS_DELAY_SEC + FOCUS_RETRY_DELAY_SEC, function()
       if isFocusSuppressed() then
+        writeActionLog(string.format("focus timer index=%d suppressed=true", index))
         return
       end
-      focusVisibleStandardWindow()
+      pendingFocusTimer = nil
+      followNativeSpaceSwitch(requestId, index, flagsToString(flags), baselineFocusedSpace, baselineActiveSpaces)
     end)
 
+    -- Keep native Option+number behavior from macOS. We only observe and follow
+    -- the resulting switch to select the correct display.
     return false
   end
 
@@ -452,6 +798,7 @@ spaceFocusOptionTap = hs.eventtap.new({
       dbg("keyUp %s flags=%s", tostring(index), flagsToString(flags))
     end
     if pendingMove and pendingMove.targetIndex == index then
+      writeActionLog(string.format("move keyUp index=%d finish=true", index))
       if pendingMove.timeoutTimer then
         pendingMove.timeoutTimer:stop()
         pendingMove.timeoutTimer = nil
@@ -465,12 +812,20 @@ spaceFocusOptionTap = hs.eventtap.new({
   return false
 end)
 
+writeActionLog("---- reload ----")
+writeActionLog("ordered-spaces " .. orderedSpacesToString())
+writeActionLog("active-spaces {" .. activeSpacesToString(hs.spaces.activeSpaces() or {}) .. "}")
+
 if SAFE_MODE then
+  writeActionLog("startup safe_mode=true hotkeys-disabled")
   hs.alert.show("Hammerspoon SAFE_MODE: shortcuts disabled")
 else
+  writeActionLog("startup safe_mode=false starting-eventtap")
   spaceFocusOptionTap:start()
+  writeActionLog("eventtap started")
 
   hs.hotkey.bind({ "alt" }, "return", function()
+    writeActionLog("hotkey alt+return maximize")
     local win = hs.window.frontmostWindow()
     if win then
       win:maximize()
