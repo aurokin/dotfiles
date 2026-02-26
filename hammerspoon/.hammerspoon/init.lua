@@ -14,9 +14,7 @@ local ENABLE_SPACE_ACTION_LOG = false
 local ACTION_LOG_FILE = homeDir ~= "" and (homeDir .. "/.hammerspoon/space-actions.log") or nil
 
 local FOCUS_MODIFIERS = { alt = true }
--- NOTE: Option+Shift+number is easy to hit accidentally (e.g. typing symbols
--- with Shift+number while Option is still held). Make moves more deliberate.
-local MOVE_MODIFIERS = { alt = true, ctrl = true, shift = true }
+local MOVE_MODIFIERS = { alt = true, shift = true }
 local MOVE_SWITCH_MODIFIERS = { alt = true }
 local MODIFIER_KEYS = { "alt", "cmd", "ctrl", "shift", "fn" }
 
@@ -788,8 +786,10 @@ spaceFocusOptionTap = hs.eventtap.new({
       followNativeSpaceSwitch(requestId, index, flagsToString(flags), baselineFocusedSpace, baselineActiveSpaces)
     end)
 
-    -- Keep native Option+number behavior from macOS. We only observe and follow
-    -- the resulting switch to select the correct display.
+    -- IMPORTANT: Keep native macOS Option+number switching. Using
+    -- hs.spaces.gotoSpace() here can trigger Mission Control-style transitions
+    -- and unstable focus behavior (especially during rapid back-to-back switches).
+    -- We only observe the native switch and then select/focus the target display.
     return false
   end
 
