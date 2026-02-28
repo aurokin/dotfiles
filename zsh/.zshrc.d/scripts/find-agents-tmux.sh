@@ -74,6 +74,17 @@ strip_known_prefixes() {
   printf '%s' "$s"
 }
 
+strip_codex_args_from_title() {
+  local s="$1"
+  # Keep contextual prefix text, but drop long codex CLI args from pane titles.
+  # Example: "(repo) task: codex --dangerously-..." -> "(repo) task: codex"
+  if [[ "$s" =~ ^(.*[[:space:]:])?(codex(-[[:alnum:]_.-]+)?)([[:space:]].+)$ ]]; then
+    printf '%s%s' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+  else
+    printf '%s' "$s"
+  fi
+}
+
 normalize_title_for_provider() {
   local provider="$1"
   local title="$2"
@@ -85,8 +96,12 @@ normalize_title_for_provider() {
     title="$(strip_leading_glyphs "$title")"
   fi
 
-  if [[ "$provider" == "codex" && -n "$activity_title" ]]; then
-    title="$activity_title"
+  if [[ "$provider" == "codex" ]]; then
+    if [[ -n "$activity_title" ]]; then
+      title="$activity_title"
+    else
+      title="$(strip_codex_args_from_title "$title")"
+    fi
   fi
 
   printf '%s' "$title"
