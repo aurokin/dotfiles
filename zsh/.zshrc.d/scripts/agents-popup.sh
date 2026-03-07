@@ -33,7 +33,7 @@ if [[ -z "$ed" ]]; then
   ed=$'\033[J'
 fi
 
-prompt='auto refresh every 2s; 1-9 switch panes; Ctrl-B for tmux prefix; any other key closes'
+prompt='1-9 switch | Ctrl-B prefix | other key closes'
 prev_hash=''
 prev_lines=0
 resize=1
