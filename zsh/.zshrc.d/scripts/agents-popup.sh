@@ -41,6 +41,8 @@ rendered_output=''
 render_lines=()
 key_targets=()
 client_tty=''
+refresh_mode='fast'
+read_timeout='0.12'
 
 if command -v tmux >/dev/null 2>&1 && [[ -n "${TMUX:-}" ]]; then
   client_tty="$(tmux display-message -p '#{client_tty}' 2>/dev/null || true)"
@@ -67,6 +69,7 @@ activate_tmux_prefix() {
 }
 
 refresh_popup_state() {
+  local mode="${1:-full}"
   local output=""
   local line=""
   local pane_id=""
@@ -80,7 +83,11 @@ refresh_popup_state() {
   local emoji=""
   local rendered_line=""
 
-  output="$("$script_dir/find-agents-tmux.sh" --popup-tsv 2>&1)"
+  if [[ "$mode" == "fast" ]]; then
+    output="$("$script_dir/find-agents-tmux.sh" --popup-tsv --fast 2>&1)"
+  else
+    output="$("$script_dir/find-agents-tmux.sh" --popup-tsv 2>&1)"
+  fi
   render_lines=()
   key_targets=()
 
@@ -117,7 +124,7 @@ refresh_popup_state() {
 }
 
 while :; do
-  refresh_popup_state
+  refresh_popup_state "$refresh_mode"
   hash_source="${rendered_output}"$'\n'"${prompt}"
   if command -v cksum >/dev/null 2>&1; then
     hash="$(printf '%s' "$hash_source" | cksum)"
@@ -151,7 +158,7 @@ while :; do
     resize=0
   fi
 
-  if IFS= read -r -s -n 1 -t 2 key; then
+  if IFS= read -r -s -n 1 -t "$read_timeout" key; then
     if [[ "$key" == [1-9] ]]; then
       pane_id="${key_targets[$key]-}"
       if [[ -n "$pane_id" ]]; then
@@ -168,6 +175,10 @@ while :; do
   else
     if [[ ! -t 0 ]]; then
       exit 0
+    fi
+    if [[ "$refresh_mode" == "fast" ]]; then
+      refresh_mode='full'
+      read_timeout='2'
     fi
   fi
 done

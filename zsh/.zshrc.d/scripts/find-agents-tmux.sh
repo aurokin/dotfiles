@@ -272,10 +272,11 @@ script_path="$0"
 output_mode="text"
 debug=0
 deep=0
+fast=0
 
 usage() {
   cat <<'USAGE'
-Usage: find-agents-tmux.sh [--json] [--popup-tsv] [--debug] [--deep]
+Usage: find-agents-tmux.sh [--json] [--popup-tsv] [--fast] [--debug] [--deep]
 
 Environment:
   TMUX_AGENTS_PROVIDERS       Comma or space-separated list (default: "opencode,gemini,codex,claude")
@@ -292,6 +293,7 @@ Environment:
 Flags:
   --json  Emit JSON records
   --popup-tsv Emit tab-separated records for agents-popup.sh
+  --fast  Skip slower process and pane-sample scans
   --deep  Run slower process scans (child/tty) for better detection
 USAGE
 }
@@ -300,6 +302,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --json) output_mode="json" ;;
     --popup-tsv) output_mode="popup_tsv" ;;
+    --fast) fast=1 ;;
     --debug) debug=1 ;;
     --deep) deep=1 ;;
     -h|--help) usage; exit 0 ;;
@@ -792,7 +795,7 @@ if [[ -z "$pane_lines" ]]; then
   exit 0
 fi
 
-if ((want_details || deep)); then
+if (((want_details || deep) && fast == 0)); then
   ensure_ps_data "$pane_lines"
 fi
 
@@ -823,7 +826,7 @@ while IFS="$pane_delim" read -r session win_idx pane_idx pane_id pane_pid pane_c
     fi
   fi
 
-  if ((pane_matched == 0)); then
+  if ((pane_matched == 0 && fast == 0)); then
     ensure_ps_data "$pane_lines"
   fi
   if ((ps_data_loaded == 1)); then
@@ -847,7 +850,7 @@ while IFS="$pane_delim" read -r session win_idx pane_idx pane_id pane_pid pane_c
     add_match "pane_cmdline: $proc_cmdline"
   fi
 
-  if ((deep == 1)); then
+  if ((deep == 1 && fast == 0)); then
     child_blob="${ppid_children[$pane_pid]-}"
     if [[ -n "$child_blob" ]]; then
       while IFS= read -r line; do
@@ -862,7 +865,7 @@ while IFS="$pane_delim" read -r session win_idx pane_idx pane_id pane_pid pane_c
     fi
   fi
 
-  if ! ((pane_matched == 1 && deep == 0 && want_details == 0)); then
+  if ((fast == 0)) && ! ((pane_matched == 1 && deep == 0 && want_details == 0)); then
     tty_short="${pane_tty#/dev/}"
     if [[ -n "$tty_short" ]]; then
       tty_blob="${tty_process_map[$tty_short]-}"
@@ -896,12 +899,14 @@ while IFS="$pane_delim" read -r session win_idx pane_idx pane_id pane_pid pane_c
     pane_sample=""
     case "$pane_provider" in
       codex)
-        pane_sample="$(tmux_capture_pane_sample "$pane_id" "$codex_status_tail_lines")"
-        if [[ -n "$pane_sample" ]]; then
-          pane_activity_title="$(extract_codex_activity_title "$pane_sample")"
-          if [[ -n "$pane_activity_title" ]]; then
-            pane_building=1
-            add_match "activity_title: $pane_activity_title"
+        if ((fast == 0)); then
+          pane_sample="$(tmux_capture_pane_sample "$pane_id" "$codex_status_tail_lines")"
+          if [[ -n "$pane_sample" ]]; then
+            pane_activity_title="$(extract_codex_activity_title "$pane_sample")"
+            if [[ -n "$pane_activity_title" ]]; then
+              pane_building=1
+              add_match "activity_title: $pane_activity_title"
+            fi
           fi
         fi
         ;;
@@ -910,7 +915,7 @@ while IFS="$pane_delim" read -r session win_idx pane_idx pane_id pane_pid pane_c
         claude_regex=""
         if claude_is_building_from_title_and_sample "$pane_title" "" claude_source claude_regex; then
           pane_building=1
-        else
+        elif ((fast == 0)); then
           pane_sample="$(tmux_capture_pane_sample "$pane_id" "$sample_lines")"
           if [[ -n "$pane_sample" ]] && claude_is_building_from_title_and_sample "$pane_title" "$pane_sample" claude_source claude_regex; then
             pane_building=1
@@ -926,7 +931,7 @@ while IFS="$pane_delim" read -r session win_idx pane_idx pane_id pane_pid pane_c
           pane_building=1
         elif [[ "$pane_title" == *"Ready"* ]]; then
           :
-        else
+        elif ((fast == 0)); then
           gemini_regex=""
           pane_sample="$(tmux_capture_pane_sample "$pane_id" "$sample_lines")"
           if [[ -n "$pane_sample" ]] && gemini_is_building_from_title_and_sample "$pane_title" "$pane_sample" gemini_regex; then
@@ -940,10 +945,12 @@ while IFS="$pane_delim" read -r session win_idx pane_idx pane_id pane_pid pane_c
       opencode)
         opencode_footer=""
         opencode_regex=""
-        opencode_sample_lines="${TMUX_AGENTS_OPENCODE_SAMPLE_LINES:-12}"
-        pane_sample="$(tmux_capture_pane_sample "$pane_id" "$opencode_sample_lines")"
-        if [[ -n "$pane_sample" ]] && opencode_is_building_from_sample "$pane_sample" opencode_footer opencode_regex; then
-          pane_building=1
+        if ((fast == 0)); then
+          opencode_sample_lines="${TMUX_AGENTS_OPENCODE_SAMPLE_LINES:-12}"
+          pane_sample="$(tmux_capture_pane_sample "$pane_id" "$opencode_sample_lines")"
+          if [[ -n "$pane_sample" ]] && opencode_is_building_from_sample "$pane_sample" opencode_footer opencode_regex; then
+            pane_building=1
+          fi
         fi
         if [[ -n "$opencode_footer" ]]; then
           add_match "opencode_footer: $opencode_footer"
@@ -951,10 +958,12 @@ while IFS="$pane_delim" read -r session win_idx pane_idx pane_id pane_pid pane_c
         fi
         ;;
       *)
-        pane_sample="$(tmux_capture_pane_sample "$pane_id" "$sample_lines")"
-        if [[ -n "$pane_sample" ]] && sample_matches_regex "$pane_sample" "$sample_regex"; then
-          pane_building=1
-          add_match "pane_sample: matched /$sample_regex/ in last ${sample_lines} lines"
+        if ((fast == 0)); then
+          pane_sample="$(tmux_capture_pane_sample "$pane_id" "$sample_lines")"
+          if [[ -n "$pane_sample" ]] && sample_matches_regex "$pane_sample" "$sample_regex"; then
+            pane_building=1
+            add_match "pane_sample: matched /$sample_regex/ in last ${sample_lines} lines"
+          fi
         fi
         ;;
     esac
