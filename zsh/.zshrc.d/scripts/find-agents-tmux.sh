@@ -269,13 +269,13 @@ read -r -a allowlist_items <<< "$cmd_allowlist"
 IFS="$allowlist_ifs"
 script_basename="$(basename "$0")"
 script_path="$0"
-json_output=0
+output_mode="text"
 debug=0
 deep=0
 
 usage() {
   cat <<'USAGE'
-Usage: find-agents-tmux.sh [--json] [--debug] [--deep]
+Usage: find-agents-tmux.sh [--json] [--popup-tsv] [--debug] [--deep]
 
 Environment:
   TMUX_AGENTS_PROVIDERS       Comma or space-separated list (default: "opencode,gemini,codex,claude")
@@ -290,13 +290,16 @@ Environment:
   TMUX_AGENTS_GEMINI_BUILD_REGEX  Regex to detect gemini "building" (default: "\(esc to cancel, [0-9]+[smhd]\)")
   TMUX_AGENTS_CMD_ALLOWLIST   Command allowlist (default: "opencode,gemini,codex,claude")
 Flags:
+  --json  Emit JSON records
+  --popup-tsv Emit tab-separated records for agents-popup.sh
   --deep  Run slower process scans (child/tty) for better detection
 USAGE
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --json) json_output=1 ;;
+    --json) output_mode="json" ;;
+    --popup-tsv) output_mode="popup_tsv" ;;
     --debug) debug=1 ;;
     --deep) deep=1 ;;
     -h|--help) usage; exit 0 ;;
@@ -307,7 +310,7 @@ done
 found=0
 json_first=1
 want_details=0
-if ((json_output || debug)); then
+if [[ "$output_mode" == "json" ]] || ((debug)); then
   want_details=1
 fi
 
@@ -343,6 +346,83 @@ json_array() {
   done
   out+="]"
   printf '%s' "$out"
+}
+
+tsv_escape_field() {
+  local s="$1"
+  s="${s//$'\t'/ }"
+  s="${s//$'\n'/ }"
+  s="${s//$'\r'/ }"
+  printf '%s' "$s"
+}
+
+emit_agent_record() {
+  local session="$1"
+  local win_idx="$2"
+  local pane_idx="$3"
+  local pane_id="$4"
+  local pane_pid="$5"
+  local pane_tty="$6"
+  local pane_title="$7"
+  local display_title="$8"
+  local provider="$9"
+  local activity_title="${10}"
+  local pane_cmd="${11}"
+  local proc_name="${12}"
+  local proc_cmdline="${13}"
+  local building_bool="${14}"
+  local building_emoji="${15}"
+
+  case "$output_mode" in
+    json)
+      if ((json_first)); then
+        json_first=0
+        printf '['
+      else
+        printf ','
+      fi
+      printf '{'
+      json_field "session" "$session"
+      json_field_raw "window_index" "$(json_escape "$win_idx")"
+      json_field_raw "pane_index" "$(json_escape "$pane_idx")"
+      json_field "pane_id" "$pane_id"
+      json_field_raw "pane_pid" "$(json_escape "$pane_pid")"
+      json_field "pane_tty" "$pane_tty"
+      json_field "pane_title" "$pane_title"
+      json_field "pane_title_display" "$display_title"
+      json_field "provider" "$provider"
+      json_field "activity_title" "$activity_title"
+      json_field "pane_current_command" "$pane_cmd"
+      json_field "pane_process" "$proc_name"
+      json_field "pane_cmdline" "$proc_cmdline"
+      json_field "pattern" "$pattern"
+      json_field_raw "sample_lines" "$(json_escape "$sample_lines")"
+      json_field "sample_regex" "$sample_regex"
+      json_field_raw "building" "$building_bool"
+      json_field_raw "matches" "$(json_array "${matches[@]}")"
+      json_field_raw "child_processes" "$(json_array "${child_processes[@]}")"
+      printf '"tty_processes":%s' "$(json_array "${tty_matches[@]}")"
+      printf '}'
+      ;;
+    popup_tsv)
+      printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$(tsv_escape_field "$pane_id")" \
+        "$(tsv_escape_field "$building_bool")" \
+        "$(tsv_escape_field "$session")" \
+        "$(tsv_escape_field "$win_idx")" \
+        "$(tsv_escape_field "$pane_idx")" \
+        "$(tsv_escape_field "$display_title")"
+      ;;
+    *)
+      printf '%s %s:%s.%s - %s\n' "$building_emoji" "$session" "$win_idx" "$pane_idx" "$display_title"
+      if ((debug)); then
+        printf '  pid=%s tty=%s title=%q\n' "$pane_pid" "$pane_tty" "$pane_title"
+        for m in "${matches[@]}"; do
+          printf '  %s\n' "$m"
+        done
+      fi
+      ;;
+  esac
 }
 
 has_allowed_cmd() {
@@ -891,54 +971,34 @@ while IFS="$pane_delim" read -r session win_idx pane_idx pane_id pane_pid pane_c
 
     display_title="$(display_title_for_pane "$pane_provider" "$pane_title" "$pane_activity_title" "$pane_cmd" "$proc_name" "$pane_tty" "$pane_id")"
 
-    if ((json_output)); then
-      if ((json_first)); then
-        json_first=0
-        printf '['
-      else
-        printf ','
-      fi
-      printf '{'
-      json_field "session" "$session"
-      json_field_raw "window_index" "$(json_escape "$win_idx")"
-      json_field_raw "pane_index" "$(json_escape "$pane_idx")"
-      json_field "pane_id" "$pane_id"
-      json_field_raw "pane_pid" "$(json_escape "$pane_pid")"
-      json_field "pane_tty" "$pane_tty"
-      json_field "pane_title" "$pane_title"
-      json_field "pane_title_display" "$display_title"
-      json_field "provider" "$pane_provider"
-      json_field "activity_title" "$pane_activity_title"
-      json_field "pane_current_command" "$pane_cmd"
-      json_field "pane_process" "$proc_name"
-      json_field "pane_cmdline" "$proc_cmdline"
-      json_field "pattern" "$pattern"
-      json_field_raw "sample_lines" "$(json_escape "$sample_lines")"
-      json_field "sample_regex" "$sample_regex"
-      json_field_raw "building" "$building_bool"
-      json_field_raw "matches" "$(json_array "${matches[@]}")"
-      json_field_raw "child_processes" "$(json_array "${child_processes[@]}")"
-      printf '"tty_processes":%s' "$(json_array "${tty_matches[@]}")"
-      printf '}'
-    else
-      printf '%s %s:%s.%s - %s\n' "$building_emoji" "$session" "$win_idx" "$pane_idx" "$display_title"
-      if ((debug)); then
-        printf '  pid=%s tty=%s title=%q\n' "$pane_pid" "$pane_tty" "$pane_title"
-        for m in "${matches[@]}"; do
-          printf '  %s\n' "$m"
-        done
-      fi
-    fi
+    emit_agent_record \
+      "$session" \
+      "$win_idx" \
+      "$pane_idx" \
+      "$pane_id" \
+      "$pane_pid" \
+      "$pane_tty" \
+      "$pane_title" \
+      "$display_title" \
+      "$pane_provider" \
+      "$pane_activity_title" \
+      "$pane_cmd" \
+      "$proc_name" \
+      "$proc_cmdline" \
+      "$building_bool" \
+      "$building_emoji"
   fi
 done <<< "$pane_lines"
 
-if ((json_output)); then
+if [[ "$output_mode" == "json" ]]; then
   if ((json_first)); then
     printf '[]'
   else
     printf ']'
   fi
   printf '\n'
+elif [[ "$output_mode" == "popup_tsv" ]]; then
+  :
 elif ((found == 0)); then
   echo "No agent instances found in tmux panes."
 fi

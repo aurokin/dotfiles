@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# shellcheck source=/dev/null
+source "$script_dir/tmux-pane-utils.sh"
+
 if [[ ! -t 0 ]]; then
-  ~/.zshrc.d/scripts/find-agents-tmux.sh
+  "$script_dir/find-agents-tmux.sh"
   exit 0
 fi
 
@@ -28,10 +33,18 @@ if [[ -z "$ed" ]]; then
   ed=$'\033[J'
 fi
 
-prompt='auto refresh every 2s; any key to close'
+prompt='auto refresh every 2s; 1-9 switch panes; Ctrl-B for tmux prefix; any other key closes'
 prev_hash=''
 prev_lines=0
 resize=1
+rendered_output=''
+render_lines=()
+key_targets=()
+client_tty=''
+
+if command -v tmux >/dev/null 2>&1 && [[ -n "${TMUX:-}" ]]; then
+  client_tty="$(tmux display-message -p '#{client_tty}' 2>/dev/null || true)"
+fi
 
 cleanup() {
   if [[ -n "$cnorm" ]]; then
@@ -53,9 +66,59 @@ activate_tmux_prefix() {
   tmux switch-client -T prefix >/dev/null 2>&1 || true
 }
 
+refresh_popup_state() {
+  local output=""
+  local line=""
+  local pane_id=""
+  local building_bool=""
+  local session=""
+  local win_idx=""
+  local pane_idx=""
+  local display_title=""
+  local line_no=0
+  local number=0
+  local emoji=""
+  local rendered_line=""
+
+  output="$("$script_dir/find-agents-tmux.sh" --popup-tsv 2>&1)"
+  render_lines=()
+  key_targets=()
+
+  if [[ -z "$output" ]]; then
+    render_lines=("No agent instances found in tmux panes.")
+  else
+    while IFS= read -r line; do
+      if [[ "$line" == *$'\t'* ]]; then
+        IFS=$'\t' read -r pane_id building_bool session win_idx pane_idx display_title <<< "$line"
+        emoji='🟢'
+        if [[ "$building_bool" == "true" ]]; then
+          emoji='🟡'
+        fi
+
+        ((line_no++))
+        if (( line_no <= 9 )); then
+          number=$line_no
+          key_targets[$number]="$pane_id"
+          rendered_line="#${number} ${emoji} ${session}:${win_idx}.${pane_idx} - ${display_title}"
+        else
+          rendered_line="   ${emoji} ${session}:${win_idx}.${pane_idx} - ${display_title}"
+        fi
+        render_lines+=("$rendered_line")
+      else
+        render_lines+=("$line")
+      fi
+    done <<< "$output"
+  fi
+
+  rendered_output=''
+  if ((${#render_lines[@]} > 0)); then
+    rendered_output="$(printf '%s\n' "${render_lines[@]}")"
+  fi
+}
+
 while :; do
-  output="$(~/.zshrc.d/scripts/find-agents-tmux.sh 2>&1)"
-  hash_source="${output}"$'\n'"${prompt}"
+  refresh_popup_state
+  hash_source="${rendered_output}"$'\n'"${prompt}"
   if command -v cksum >/dev/null 2>&1; then
     hash="$(printf '%s' "$hash_source" | cksum)"
   else
@@ -65,11 +128,11 @@ while :; do
   if [[ "$hash" != "$prev_hash" || $resize -eq 1 ]]; then
     frame="$cup0"
     lines=0
-    if [[ -n "$output" ]]; then
+    if [[ -n "$rendered_output" ]]; then
       while IFS= read -r line; do
         frame+="${el}"$'\r'"${line}"$'\n'
         ((lines++))
-      done <<< "$output"
+      done <<< "$rendered_output"
     fi
     frame+="${el}"$'\r\n'
     frame+="${el}"$'\r'"${prompt}"$'\n'
@@ -89,7 +152,16 @@ while :; do
   fi
 
   if IFS= read -r -s -n 1 -t 2 key; then
-    if [[ "$key" == $'\002' ]]; then
+    if [[ "$key" == [1-9] ]]; then
+      pane_id="${key_targets[$key]-}"
+      if [[ -n "$pane_id" ]]; then
+        if tmux_pane_exists "$pane_id"; then
+          tmux_focus_pane "$client_tty" "$pane_id"
+        else
+          tmux_msg "$client_tty" "Agent pane ${key} is no longer available."
+        fi
+      fi
+    elif [[ "$key" == $'\002' ]]; then
       activate_tmux_prefix
     fi
     exit 0

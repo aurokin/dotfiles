@@ -3,6 +3,11 @@ set -euo pipefail
 IFS=$'\n\t'
 
 script_name="$(basename "$0")"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Shared tmux pane focusing behavior used by multiple scripts.
+# shellcheck source=/dev/null
+source "$script_dir/tmux-pane-utils.sh"
 
 WORKSPACE_PRIORITY=(editor git query ai)
 
@@ -25,36 +30,6 @@ die() {
 
 have_tmux() {
   command -v tmux >/dev/null 2>&1
-}
-
-tmux_msg() {
-  local client_tty="$1"
-  shift
-  local msg="$*"
-  if [[ -n "$client_tty" ]]; then
-    tmux display-message -c "$client_tty" "$msg" 2>/dev/null || true
-  else
-    tmux display-message "$msg" 2>/dev/null || true
-  fi
-}
-
-tmux_focus_pane() {
-  local client_tty="$1"
-  local pane_id="$2"
-  if [[ -z "$pane_id" ]]; then
-    return 0
-  fi
-
-  # -Z keeps zoom if the target is a pane.
-  if [[ -n "$client_tty" ]]; then
-    tmux switch-client -Z -c "$client_tty" -t "$pane_id" 2>/dev/null \
-      || tmux switch-client -c "$client_tty" -t "$pane_id" 2>/dev/null \
-      || true
-  else
-    tmux switch-client -Z -t "$pane_id" 2>/dev/null \
-      || tmux switch-client -t "$pane_id" 2>/dev/null \
-      || true
-  fi
 }
 
 resolve_pane_id() {
