@@ -73,7 +73,7 @@ refresh_popup_state() {
   local output=""
   local line=""
   local pane_id=""
-  local building_bool=""
+  local building_state=""
   local session=""
   local win_idx=""
   local pane_idx=""
@@ -96,11 +96,12 @@ refresh_popup_state() {
   else
     while IFS= read -r line; do
       if [[ "$line" == *$'\t'* ]]; then
-        IFS=$'\t' read -r pane_id building_bool session win_idx pane_idx display_title <<< "$line"
-        emoji='🟢'
-        if [[ "$building_bool" == "true" ]]; then
-          emoji='🟡'
-        fi
+        IFS=$'\t' read -r pane_id building_state session win_idx pane_idx display_title <<< "$line"
+        case "$building_state" in
+          true) emoji='🟡' ;;
+          unknown) emoji='⚫' ;;
+          *) emoji='🟢' ;;
+        esac
 
         ((line_no++))
         if (( line_no <= 9 )); then

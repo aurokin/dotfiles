@@ -373,7 +373,7 @@ emit_agent_record() {
   local pane_cmd="${11}"
   local proc_name="${12}"
   local proc_cmdline="${13}"
-  local building_bool="${14}"
+  local building_state="${14}"
   local building_emoji="${15}"
 
   case "$output_mode" in
@@ -401,7 +401,8 @@ emit_agent_record() {
       json_field "pattern" "$pattern"
       json_field_raw "sample_lines" "$(json_escape "$sample_lines")"
       json_field "sample_regex" "$sample_regex"
-      json_field_raw "building" "$building_bool"
+      json_field_raw "building" "$([[ "$building_state" == "true" ]] && printf 'true' || printf 'false')"
+      json_field "building_state" "$building_state"
       json_field_raw "matches" "$(json_array "${matches[@]}")"
       json_field_raw "child_processes" "$(json_array "${child_processes[@]}")"
       printf '"tty_processes":%s' "$(json_array "${tty_matches[@]}")"
@@ -410,7 +411,7 @@ emit_agent_record() {
     popup_tsv)
       printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
         "$(tsv_escape_field "$pane_id")" \
-        "$(tsv_escape_field "$building_bool")" \
+        "$(tsv_escape_field "$building_state")" \
         "$(tsv_escape_field "$session")" \
         "$(tsv_escape_field "$win_idx")" \
         "$(tsv_escape_field "$pane_idx")" \
@@ -802,6 +803,7 @@ fi
 while IFS="$pane_delim" read -r session win_idx pane_idx pane_id pane_pid pane_cmd pane_title pane_tty; do
   pane_matched=0
   pane_building=0
+  pane_building_known=1
   pane_activity_title=""
   pane_provider=""
   proc_name=""
@@ -908,6 +910,8 @@ while IFS="$pane_delim" read -r session win_idx pane_idx pane_id pane_pid pane_c
               add_match "activity_title: $pane_activity_title"
             fi
           fi
+        else
+          pane_building_known=0
         fi
         ;;
       claude)
@@ -951,6 +955,8 @@ while IFS="$pane_delim" read -r session win_idx pane_idx pane_id pane_pid pane_c
           if [[ -n "$pane_sample" ]] && opencode_is_building_from_sample "$pane_sample" opencode_footer opencode_regex; then
             pane_building=1
           fi
+        else
+          pane_building_known=0
         fi
         if [[ -n "$opencode_footer" ]]; then
           add_match "opencode_footer: $opencode_footer"
@@ -971,11 +977,14 @@ while IFS="$pane_delim" read -r session win_idx pane_idx pane_id pane_pid pane_c
 
   if ((pane_matched == 1)); then
     found=1
+    building_state="false"
     building_emoji="🟢"
-    building_bool="false"
-    if ((pane_building == 1)); then
+    if ((pane_building_known == 0)); then
+      building_state="unknown"
+      building_emoji="⚫"
+    elif ((pane_building == 1)); then
       building_emoji="🟡"
-      building_bool="true"
+      building_state="true"
     fi
 
     display_title="$(display_title_for_pane "$pane_provider" "$pane_title" "$pane_activity_title" "$pane_cmd" "$proc_name" "$pane_tty" "$pane_id")"
@@ -994,7 +1003,7 @@ while IFS="$pane_delim" read -r session win_idx pane_idx pane_id pane_pid pane_c
       "$pane_cmd" \
       "$proc_name" \
       "$proc_cmdline" \
-      "$building_bool" \
+      "$building_state" \
       "$building_emoji"
   fi
 done <<< "$pane_lines"
