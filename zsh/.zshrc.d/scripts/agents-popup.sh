@@ -33,13 +33,14 @@ if [[ -z "$ed" ]]; then
   ed=$'\033[J'
 fi
 
-prompt='1-9 switch | Ctrl-B prefix | other key closes'
+pane_keys=(1 2 3 4 5 6 Q E R F G T Z X C V B)
+prompt='Select pane | Ctrl-B prefix | other key closes'
 prev_hash=''
 prev_lines=0
 resize=1
 rendered_output=''
 render_lines=()
-key_targets=()
+declare -A key_targets=()
 client_tty=''
 refresh_mode='fast'
 read_timeout='0.12'
@@ -79,7 +80,7 @@ refresh_popup_state() {
   local pane_idx=""
   local display_title=""
   local line_no=0
-  local number=0
+  local key_label=""
   local emoji=""
   local rendered_line=""
 
@@ -104,10 +105,10 @@ refresh_popup_state() {
         esac
 
         ((line_no++))
-        if (( line_no <= 9 )); then
-          number=$line_no
-          key_targets[$number]="$pane_id"
-          rendered_line="#${number} ${emoji} ${session}:${win_idx}.${pane_idx} - ${display_title}"
+        if (( line_no <= ${#pane_keys[@]} )); then
+          key_label="${pane_keys[$((line_no - 1))]}"
+          key_targets[$key_label]="$pane_id"
+          rendered_line="[${key_label}] ${emoji} ${session}:${win_idx}.${pane_idx} - ${display_title}"
         else
           rendered_line="   ${emoji} ${session}:${win_idx}.${pane_idx} - ${display_title}"
         fi
@@ -160,13 +161,18 @@ while :; do
   fi
 
   if IFS= read -r -s -n 1 -t "$read_timeout" key; then
-    if [[ "$key" == [1-9] ]]; then
-      pane_id="${key_targets[$key]-}"
+    normalized_key="$key"
+    if [[ "$normalized_key" == [[:lower:]] ]]; then
+      normalized_key="${normalized_key^^}"
+    fi
+
+    if [[ -n "${key_targets[$normalized_key]-}" ]]; then
+      pane_id="${key_targets[$normalized_key]-}"
       if [[ -n "$pane_id" ]]; then
         if tmux_pane_exists "$pane_id"; then
           tmux_focus_pane "$client_tty" "$pane_id"
         else
-          tmux_msg "$client_tty" "Agent pane ${key} is no longer available."
+          tmux_msg "$client_tty" "Agent pane ${normalized_key} is no longer available."
         fi
       fi
     elif [[ "$key" == $'\002' ]]; then
