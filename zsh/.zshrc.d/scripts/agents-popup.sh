@@ -33,7 +33,7 @@ if [[ -z "$ed" ]]; then
   ed=$'\033[J'
 fi
 
-pane_keys=(1 2 3 4 5 6 Q E R F G T Z X C V B)
+pane_keys=(1 2 3 4 5 Q E R F G T Z X C V B)
 prompt='Select pane | Ctrl-B prefix | other key closes'
 prev_hash=''
 prev_lines=0
