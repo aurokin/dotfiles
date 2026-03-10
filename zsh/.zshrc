@@ -56,6 +56,7 @@ alias cc="claude --dangerously-skip-permissions"
 # Keep zsh/.zshrc.d/scripts/lgpt.sh in sync if this command changes.
 alias gpt="codex --dangerously-bypass-approvals-and-sandbox"
 alias lgpt="$HOME/.zshrc.d/scripts/lgpt.sh"
+alias golo="gemini --yolo"
 alias e="exit"
 alias ds="directory-sync"
 alias lsl="eza -lg --smart-group"
