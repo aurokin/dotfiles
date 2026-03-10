@@ -1,3 +1,18 @@
 personality = "pragmatic"
 model = "gpt-5.4"
 model_reasoning_effort = "high"
+
+[projects."/home/auro/code/bitbucket_cli"]
+trust_level = "trusted"
+
+[projects."/home/auro/code"]
+trust_level = "trusted"
+
+[projects."/home/auro/notes"]
+trust_level = "trusted"
+
+[projects."/home/auro/.dotfiles"]
+trust_level = "trusted"
+
+[features]
+js_repl = true
