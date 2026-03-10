@@ -26,3 +26,6 @@ vim.o.updatetime = 250
 vim.o.timeoutlen = 300
 vim.o.completeopt = 'menuone,noselect'
 vim.o.termguicolors = true
+
+-- netrw defaults to disabling line numbers in directory buffers.
+vim.g.netrw_bufsettings = 'noma nomod nu nobl nowrap ro rnu'
