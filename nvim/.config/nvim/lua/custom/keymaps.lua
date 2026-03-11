@@ -7,7 +7,7 @@ vim.keymap.set({ 'n', 'v' }, '<C-k>', '<C-w>k')
 vim.keymap.set({ 'n', 'v' }, '<C-l>', '<C-w>l')
 vim.keymap.set({ 'n', 'v' }, '<C-v>', '<C-w>v<C-w>l')
 vim.keymap.set({ 'n', 'v' }, '<C-s>', '<C-w>S<C-w>j')
-vim.keymap.set({ 'n', 'v' }, '<leader>6', '<C-^>')
+vim.keymap.set({ 'n', 'v' }, '<leader>6', '<C-^>', { desc = 'Alternate Buffer' })
 vim.keymap.set({ 'n', 'v' }, '<leader>qc', function()
     vim.cmd 'cexpr []'
 end, { desc = 'Clear Quickfix List' })
