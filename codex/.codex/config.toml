@@ -14,5 +14,35 @@ trust_level = "trusted"
 [projects."/home/auro/.dotfiles"]
 trust_level = "trusted"
 
+[projects."/home/auro/code/routerchat"]
+trust_level = "trusted"
+
+[projects."/home/auro/code/agentchat"]
+trust_level = "trusted"
+
+[projects."/home/auro/code/simc"]
+trust_level = "trusted"
+
+[projects."/home/auro/code/public_assets"]
+trust_level = "trusted"
+
+[projects."/home/auro/code/tbc_rotationtools"]
+trust_level = "trusted"
+
+[projects."/home/auro/code/auro_midnight"]
+trust_level = "trusted"
+
+[projects."/home/auro/code/codex"]
+trust_level = "trusted"
+
+[projects."/home/auro/.openclaw"]
+trust_level = "trusted"
+
+[projects."/home/auro/code/wowhead_cli"]
+trust_level = "trusted"
+
+[projects."/home/auro/code/parallel-n64"]
+trust_level = "trusted"
+
 [features]
 js_repl = true
