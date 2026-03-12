@@ -74,6 +74,24 @@ strip_known_prefixes() {
   printf '%s' "$s"
 }
 
+normalize_provider_invocation_in_title() {
+  local provider="$1"
+  local s="${2:-}"
+
+  case "$provider" in
+    codex)
+      # Collapse local wrapper names/paths down to the command users think in.
+      # Example: "(repo) task: /home/me/.zshrc.d/scripts/lgpt.sh" -> "(repo) task: codex"
+      if [[ "$s" =~ ^(.*[[:space:]:])?(([^[:space:]]*/)?(lgpt\.sh|gpt|codex(-[[:alnum:]_.-]+)?))([[:space:]].*)?$ ]]; then
+        printf '%s%s' "${BASH_REMATCH[1]}" "codex"
+        return 0
+      fi
+      ;;
+  esac
+
+  printf '%s' "$s"
+}
+
 strip_codex_args_from_title() {
   local s="$1"
   # Keep contextual prefix text, but drop long codex CLI args from pane titles.
@@ -100,6 +118,7 @@ normalize_title_for_provider() {
     if [[ -n "$activity_title" ]]; then
       title="$activity_title"
     else
+      title="$(normalize_provider_invocation_in_title "$provider" "$title")"
       title="$(strip_codex_args_from_title "$title")"
     fi
   fi
