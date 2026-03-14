@@ -477,6 +477,57 @@ provider_from_cmd() {
   return 1
 }
 
+provider_cmdline_is_interactive() {
+  local provider="$1"
+  local cmdline="${2:-}"
+  [[ -z "$provider" || -z "$cmdline" ]] && return 1
+
+  local normalized
+  local cmd_token
+  local remainder=""
+  local first_arg=""
+
+  normalized="$(trim_ws "$cmdline")"
+  [[ -z "$normalized" ]] && return 1
+
+  cmd_token="${normalized%%[[:space:]]*}"
+  if [[ "$normalized" != "$cmd_token" ]]; then
+    remainder="${normalized#"$cmd_token"}"
+    remainder="$(trim_ws "$remainder")"
+    first_arg="${remainder%%[[:space:]]*}"
+  fi
+
+  case "$provider" in
+    codex)
+      # Ignore helper/background services that share a pane TTY but are not
+      # interactive Codex sessions.
+      case "$first_arg" in
+        app-server) return 1 ;;
+      esac
+      ;;
+  esac
+
+  return 0
+}
+
+provider_from_cmdline() {
+  local cmdline="$1"
+  [[ -z "$cmdline" ]] && return 1
+
+  local cmd_token="${cmdline%% *}"
+  local provider=""
+
+  provider="$(provider_from_cmd "$cmd_token" || true)"
+  if [[ -z "$provider" ]]; then
+    provider="$(provider_from_text "$cmdline" || true)"
+  fi
+
+  [[ -n "$provider" ]] || return 1
+  provider_cmdline_is_interactive "$provider" "$cmdline" || return 1
+
+  printf '%s' "$provider"
+}
+
 provider_from_text() {
   local text="$1"
   [[ -z "$text" ]] && return 1
@@ -518,8 +569,7 @@ provider_from_ps_line() {
   local line="$1"
   [[ -z "$line" ]] && return 1
   local rest="${line#* }"
-  local cmd_token="${rest%% *}"
-  provider_from_cmd "$cmd_token" || provider_from_text "$rest"
+  provider_from_cmdline "$rest"
 }
 
 line_has_allowed_cmd() {
@@ -863,10 +913,15 @@ while IFS="$pane_delim" read -r session win_idx pane_idx pane_id pane_pid pane_c
     pane_matched=1
     add_match "pane_process: $proc_name"
   fi
-  if [[ -n "$proc_cmdline" ]] && [[ "$proc_cmdline" =~ $pattern ]]; then
+  if [[ -n "$proc_cmdline" ]]; then
+    proc_provider="$(provider_from_cmdline "$proc_cmdline" || true)"
+  else
+    proc_provider=""
+  fi
+  if [[ -n "$proc_provider" ]]; then
     pane_matched=1
     if [[ -z "$pane_provider" ]]; then
-      pane_provider="$(provider_from_text "$proc_cmdline" || true)"
+      pane_provider="$proc_provider"
     fi
     add_match "pane_cmdline: $proc_cmdline"
   fi
@@ -895,7 +950,7 @@ while IFS="$pane_delim" read -r session win_idx pane_idx pane_id pane_pid pane_c
           if is_self_line "$line"; then
             continue
           fi
-          if line_matches_pattern "$line" || { ((deep == 1)) && line_has_allowed_cmd "$line"; }; then
+          if line_has_allowed_cmd "$line"; then
             pane_matched=1
             if [[ -z "$pane_provider" ]]; then
               pane_provider="$(provider_from_ps_line "$line" 2>/dev/null || true)"
