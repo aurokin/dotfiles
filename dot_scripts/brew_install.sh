@@ -13,6 +13,7 @@ brew install xcbeautify
 
 brew install jq
 brew install libyaml
+brew install sqlite
 brew install bash
 brew install bc
 brew install coreutils
