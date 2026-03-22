@@ -14,14 +14,15 @@ fi
 export DISPLAY=:0
 export XAUTHORITY="$HOME/.Xauthority"
 
+# Legacy wrappers kept for muscle memory. Prefer `crs <source>`.
 clip_bront() {
-  ssh auro@haste.home.arpa 'schtasks /Run /TN clip_haste_push'
+  crs haste "$@"
 }
 
 clip_haste() {
-  clip_bront "$@"
+  crs haste "$@"
 }
 
 clip_luma() {
-  ssh auro@luma.home.arpa '~/code/scripts/luma/send-clipboard-to-ssh-macos.sh --target auro@bront.home.arpa'
+  crs luma "$@"
 }
