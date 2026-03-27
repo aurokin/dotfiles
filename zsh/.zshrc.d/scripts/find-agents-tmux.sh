@@ -87,6 +87,14 @@ normalize_provider_invocation_in_title() {
         return 0
       fi
       ;;
+    claude)
+      # Collapse local wrapper names/paths down to the command users think in.
+      # Example: "(repo) task: /home/me/.zshrc.d/scripts/lcc.sh" -> "(repo) task: claude"
+      if [[ "$s" =~ ^(.*[[:space:]:])?(([^[:space:]]*/)?(lcc\.sh|lcc|claude(-[[:alnum:]_.-]+)?))([[:space:]].*)?$ ]]; then
+        printf '%s%s' "${BASH_REMATCH[1]}" "claude"
+        return 0
+      fi
+      ;;
   esac
 
   printf '%s' "$s"
@@ -112,6 +120,7 @@ normalize_title_for_provider() {
 
   if [[ "$provider" == "claude" ]]; then
     title="$(strip_leading_glyphs "$title")"
+    title="$(normalize_provider_invocation_in_title "$provider" "$title")"
   fi
 
   if [[ "$provider" == "codex" ]]; then
@@ -451,6 +460,13 @@ emit_agent_record() {
 has_allowed_cmd() {
   local cmd="$1"
   [[ -z "$cmd" ]] && return 1
+
+  case "${cmd##*/}" in
+    lcc|lcc.sh)
+      return 0
+      ;;
+  esac
+
   local item
   for item in "${allowlist_items[@]}"; do
     [[ -z "$item" ]] && continue
@@ -466,6 +482,14 @@ provider_from_cmd() {
   local cmd="$1"
   [[ -z "$cmd" ]] && return 1
   local cmd_base="${cmd##*/}"
+
+  case "$cmd_base" in
+    lcc|lcc.sh)
+      printf '%s' claude
+      return 0
+      ;;
+  esac
+
   local item
   for item in "${allowlist_items[@]}"; do
     [[ -z "$item" ]] && continue

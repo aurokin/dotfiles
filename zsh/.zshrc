@@ -16,7 +16,8 @@ export GIT_EDITOR=nvim
 export LS_COLORS=true
 
 # Claude
-export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+# Remove Later
+unset CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC
 
 # XDG
 export XDG_CONFIG_HOME="$HOME/.config"
@@ -52,7 +53,9 @@ export PATH="$HOME/.bin:$HOME/.local/bin:$PATH"
 
 # Set Aliases
 alias c="clear"
+# Keep zsh/.zshrc.d/scripts/lcc.sh in sync if this command changes.
 alias cc="claude --dangerously-skip-permissions"
+alias lcc="$HOME/.zshrc.d/scripts/lcc.sh"
 # Keep zsh/.zshrc.d/scripts/lgpt.sh in sync if this command changes.
 alias gpt="codex --dangerously-bypass-approvals-and-sandbox"
 alias lgpt="$HOME/.zshrc.d/scripts/lgpt.sh"
