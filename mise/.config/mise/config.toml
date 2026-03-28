@@ -8,7 +8,7 @@ rust = "stable"
 python = "latest"
 ruby = "latest"
 pipx = "latest"
-"go:github.com/aurokin/clip-remote-sync/cmd/crs" = "latest"
+"github:aurokin/clip-remote-sync" = { version = "latest", asset_pattern = "crs", bin = "crs" }
 
 # Node CLIs
 "npm:opencode-ai" = "latest"
