@@ -77,7 +77,7 @@ alias gwt="$HOME/.zshrc.d/scripts/git-new-worktree.sh"
 alias gcb="git checkout \$(git branch | fzf)"
 alias lg="lazygit"
 alias rr="rm -rf"
-alias twm="source ~/.zshrc.d/scripts/twigsmux.sh"
+alias twm="~/.zshrc.d/scripts/twigsmux.sh"
 alias agents="$HOME/.zshrc.d/scripts/find-agents-tmux.sh"
 alias pscripts="$HOME/.zshrc.d/scripts/list-package-json-scripts.sh"
 
