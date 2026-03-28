@@ -26,7 +26,7 @@ result=$(tmux ls -F '#{session_name}' \
     | fzf --print-query \
         --prompt="switch> " \
         --header="enter=select, ctrl-n=new, ctrl-k=kill" \
-        --expect=ctrl-n,ctrl-k)
+        --expect=ctrl-n,ctrl-k) || exit 0
 
 query=$(sed -n '1p' <<< "$result")
 key=$(sed -n '2p' <<< "$result")
