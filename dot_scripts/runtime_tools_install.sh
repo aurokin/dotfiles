@@ -22,10 +22,11 @@ fi
 mise reshim
 
 echo "Resolved tools:"
-command -v opencode prettierd pod fastlane beautysh http httpie ranger gemini copilot || true
+command -v opencode claude prettierd pod fastlane beautysh http httpie ranger gemini copilot || true
 
 echo "Tool versions:"
 opencode --version || true
+claude --version || true
 prettierd --version || true
 gemini --version || true
 copilot --version || true

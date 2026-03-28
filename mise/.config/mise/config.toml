@@ -12,6 +12,7 @@ pipx = "latest"
 
 # Node CLIs
 "npm:opencode-ai" = "latest"
+"npm:@anthropic-ai/claude-code" = "latest"
 "npm:@fsouza/prettierd" = "latest"
 "npm:@vue/typescript-plugin" = "latest"
 "npm:typescript-language-server" = "latest"
