@@ -11,7 +11,7 @@ default_window="editor"
 default_session="default"
 
 mode="$1"
-current_session="$2"
+current_session="${2:-$(tmux display-message -p '#S' 2>/dev/null)}"
 
 # Outside tmux: attach or create
 if [[ -z "$TMUX" ]]; then
