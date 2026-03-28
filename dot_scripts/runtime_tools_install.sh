@@ -19,6 +19,11 @@ if command -v corepack >/dev/null 2>&1; then
   corepack enable || true
 fi
 
+# Claude Code is installed via the upstream native installer when missing.
+if ! command -v claude >/dev/null 2>&1; then
+  curl -fsSL https://claude.ai/install.sh | bash
+fi
+
 mise reshim
 
 echo "Resolved tools:"
