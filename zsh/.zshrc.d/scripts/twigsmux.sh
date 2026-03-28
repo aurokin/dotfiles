@@ -32,8 +32,8 @@ query=$(sed -n '1p' <<< "$result")
 key=$(sed -n '2p' <<< "$result")
 selected=$(sed -n '3p' <<< "$result")
 
-if [[ "$key" == "ctrl-k" && -n "$selected" && "$selected" != "$current_session" ]]; then
-    tmux kill-session -t "=$selected"
+if [[ "$key" == "ctrl-k" ]]; then
+    [[ -n "$selected" && "$selected" != "$current_session" ]] && tmux kill-session -t "=$selected"
     exit 0
 fi
 
