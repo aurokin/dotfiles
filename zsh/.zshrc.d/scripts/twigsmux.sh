@@ -15,11 +15,11 @@ current_session="${2:-$(tmux display-message -p '#S' 2>/dev/null)}"
 
 # Outside tmux: attach or create
 if [[ -z "$TMUX" ]]; then
-    if pgrep -q tmux; then
+    if tmux list-sessions >/dev/null 2>&1; then
         exec tmux attach
-    else
-        exec tmux new-session -s "$default_session" -n "$default_window" -c ~
     fi
+
+    exec tmux new-session -s "$default_session" -n "$default_window" -c ~
 fi
 
 result=$(tmux ls -F '#{session_name}' \
