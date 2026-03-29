@@ -4,14 +4,13 @@
 # Runs inside tmux display-popup (no throwaway session needed)
 #
 # Keybinds for .tmux.conf:
-#   bind-key t display-popup -E -w 50% -h 50% "~/.zshrc.d/scripts/twigsmux.sh switch '#{session_name}'"
+#   bind-key t display-popup -E -w 50% -h 50% "~/.zshrc.d/scripts/twigsmux.sh"
 #   bind-key L switch-client -l
 
 default_window="editor"
 default_session="default"
 
-mode="$1"
-current_session="${2:-$(tmux display-message -p '#S' 2>/dev/null)}"
+current_session=$(tmux display-message -p '#S' 2>/dev/null)
 
 # Outside tmux: attach or create
 if [[ -z "$TMUX" ]]; then
@@ -26,7 +25,9 @@ result=$(tmux ls -F '#{session_name}' \
     | fzf --print-query \
         --prompt="switch> " \
         --header="enter=select, ctrl-n=new, ctrl-k=kill" \
-        --expect=ctrl-n,ctrl-k) || exit 0
+        --expect=ctrl-n,ctrl-k)
+fzf_exit=$?
+(( fzf_exit > 1 )) && exit 0
 
 query=$(sed -n '1p' <<< "$result")
 key=$(sed -n '2p' <<< "$result")
