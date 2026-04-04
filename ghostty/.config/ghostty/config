@@ -20,7 +20,7 @@ font-thicken = true
 font-thicken-strength = 60
 
 window-padding-x = 10
-window-padding-y = 10
+window-padding-y = 0
 
 background-opacity = 0.9
 faint-opacity = 0.78
