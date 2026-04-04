@@ -53,6 +53,7 @@ export PATH="$HOME/.bin:$HOME/.local/bin:$PATH"
 
 # Set Aliases
 alias c="clear"
+alias icat="kitten icat"
 # Keep zsh/.zshrc.d/scripts/lcc.sh in sync if this command changes.
 alias cc="claude --dangerously-skip-permissions"
 alias lcc="$HOME/.zshrc.d/scripts/lcc.sh"
