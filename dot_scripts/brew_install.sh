@@ -30,6 +30,7 @@ brew install gh
 brew install glab
 brew install steipete/tap/remindctl
 brew install steipete/tap/goplaces
+brew install dedene/tap/raindrop
 
 brew install zsh
 brew install pure
