@@ -331,6 +331,7 @@ Environment:
   TMUX_AGENTS_CLAUDE_TITLE_BUILD_REGEX Regex to detect claude "building" from pane title (default: "^[[:space:]]*[braille-spinner][[:space:]]+")
   TMUX_AGENTS_CLAUDE_BUILD_REGEX  Regex to detect claude "building" (default: "^[[:space:]]*esc to interrupt[[:space:]]*$")
   TMUX_AGENTS_GEMINI_BUILD_REGEX  Regex to detect gemini "building" (default: "\(esc to cancel, [0-9]+[smhd]\)")
+  TMUX_AGENTS_COPILOT_FAST_SAMPLE_LINES Lines to sample for fast Copilot detection (default: 20)
   TMUX_AGENTS_COPILOT_TITLE_BUILD_REGEX Regex to detect copilot "building" from pane title (default: "^[[:space:]]*🤖[[:space:]]+")
   TMUX_AGENTS_COPILOT_BUILD_REGEX Regex to detect copilot "building" (default: "^[[:space:]]*[○◎●•·][[:space:]].*\(esc[[:space:]]+to[[:space:]]+(cancel|interrupt|stop)[^)]*\)[[:space:]]*$")
   TMUX_AGENTS_CMD_ALLOWLIST   Command allowlist (default: "opencode,gemini,codex,claude,copilot")
@@ -826,6 +827,23 @@ copilot_is_building_from_title_and_sample() {
   return 1
 }
 
+copilot_sample_looks_interactive() {
+  local sample="${1:-}"
+  [[ -z "$sample" ]] && return 1
+
+  local line=""
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    case "$line" in
+      *'GitHub Copilot v'*|*'Copilot uses AI, so always check for mistakes.'*|*'Type @ to mention files, # for issues/PRs, / for commands, or ? for shortcuts'*|*'shift+tab switch mode'*|*'ctrl+q enqueue'*|*'Remaining reqs.:'*)
+        return 0
+        ;;
+    esac
+  done <<< "$sample"
+
+  return 1
+}
+
 extract_last_line_containing() {
   local sample="$1"
   local needle="$2"
@@ -995,6 +1013,16 @@ while IFS="$pane_delim" read -r session win_idx pane_idx pane_id pane_pid pane_c
     if [[ -n "$pane_provider" ]]; then
       pane_matched=1
       add_match "pane_title: $pane_title"
+    fi
+  fi
+
+  if ((pane_matched == 0)) && [[ "$pane_cmd" == "node" ]] && [[ "$pane_id" == %* ]]; then
+    copilot_fast_sample_lines="${TMUX_AGENTS_COPILOT_FAST_SAMPLE_LINES:-20}"
+    pane_sample="$(tmux_capture_pane_sample "$pane_id" "$copilot_fast_sample_lines")"
+    if [[ -n "$pane_sample" ]] && copilot_sample_looks_interactive "$pane_sample"; then
+      pane_matched=1
+      pane_provider="copilot"
+      add_match "pane_sample: copilot fast detect"
     fi
   fi
 
