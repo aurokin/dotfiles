@@ -12,7 +12,7 @@ if ! tmux list-sessions >/dev/null 2>&1; then
   exit 0
 fi
 
-providers_raw="${TMUX_AGENTS_PROVIDERS:-opencode,gemini,codex,claude}"
+providers_raw="${TMUX_AGENTS_PROVIDERS:-opencode,gemini,codex,claude,copilot}"
 providers_raw="${providers_raw//,/ }"
 providers=()
 old_ifs="$IFS"
@@ -38,6 +38,7 @@ register_provider opencode "opencode" "opencode" ""
 register_provider gemini "gemini" "gemini" "esc to cancel"
 register_provider codex "codex" "codex" "esc to cancel|esc to interrupt|esc to stop"
 register_provider claude "claude" "claude" "esc to cancel|esc to interrupt|esc to stop"
+register_provider copilot "copilot|GitHub Copilot" "copilot" "esc to interrupt|esc to cancel|esc to stop"
 
 join_with_delim() {
   local delim="$1"
@@ -70,6 +71,7 @@ strip_known_prefixes() {
     'OC | '*) s="${s#OC | }" ;;
     'Claude Code | '*) s="${s#Claude Code | }" ;;
     'Claude | '*) s="${s#Claude | }" ;;
+    'GitHub Copilot | '*) s="${s#GitHub Copilot | }" ;;
   esac
   printf '%s' "$s"
 }
@@ -92,6 +94,13 @@ normalize_provider_invocation_in_title() {
       # Example: "(repo) task: /home/me/.zshrc.d/scripts/lcc.sh" -> "(repo) task: claude"
       if [[ "$s" =~ ^(.*[[:space:]:])?(([^[:space:]]*/)?(lcc\.sh|lcc|claude(-[[:alnum:]_.-]+)?))([[:space:]].*)?$ ]]; then
         printf '%s%s' "${BASH_REMATCH[1]}" "claude"
+        return 0
+      fi
+      ;;
+    copilot)
+      # Collapse local wrapper names/paths down to the command users think in.
+      if [[ "$s" =~ ^(.*[[:space:]:])?(([^[:space:]]*/)?(colo|copilot))([[:space:]].*)?$ ]]; then
+        printf '%s%s' "${BASH_REMATCH[1]}" "copilot"
         return 0
       fi
       ;;
@@ -119,6 +128,11 @@ normalize_title_for_provider() {
   title="$(strip_known_prefixes "$title")"
 
   if [[ "$provider" == "claude" ]]; then
+    title="$(strip_leading_glyphs "$title")"
+    title="$(normalize_provider_invocation_in_title "$provider" "$title")"
+  fi
+
+  if [[ "$provider" == "copilot" ]]; then
     title="$(strip_leading_glyphs "$title")"
     title="$(normalize_provider_invocation_in_title "$provider" "$title")"
   fi
@@ -272,10 +286,10 @@ cmd_allowlist_default="$(join_with_delim ',' "${build_allowlist[@]}")"
 sample_regex_default="$(join_with_delim '|' "${build_sample_regexes[@]}")"
 
 if [[ -z "$pattern_default" ]]; then
-  pattern_default="opencode|gemini|codex|claude"
+  pattern_default="opencode|gemini|codex|claude|copilot|GitHub Copilot"
 fi
 if [[ -z "$cmd_allowlist_default" ]]; then
-  cmd_allowlist_default="opencode,gemini,codex,claude"
+  cmd_allowlist_default="opencode,gemini,codex,claude,copilot"
 fi
 if [[ -z "$sample_regex_default" ]]; then
   sample_regex_default="esc to cancel|esc to interrupt|esc to stop"
@@ -307,8 +321,8 @@ usage() {
 Usage: find-agents-tmux.sh [--json] [--popup-tsv] [--fast] [--debug] [--deep]
 
 Environment:
-  TMUX_AGENTS_PROVIDERS       Comma or space-separated list (default: "opencode,gemini,codex,claude")
-  TMUX_AGENTS_PATTERN         Regex to identify agent panes (default: "opencode|gemini|codex|claude")
+  TMUX_AGENTS_PROVIDERS       Comma or space-separated list (default: "opencode,gemini,codex,claude,copilot")
+  TMUX_AGENTS_PATTERN         Regex to identify agent panes (default: "opencode|gemini|codex|claude|copilot|GitHub Copilot")
   TMUX_AGENTS_SAMPLE_LINES    Lines to sample from visible pane tail (default: 30)
   TMUX_AGENTS_CODEX_STATUS_TAIL_LINES Lines from visible codex pane to scan for active status (default: 20)
   TMUX_AGENTS_SAMPLE_REGEX    Regex to detect "building" state (default: "esc to cancel|esc to interrupt|esc to stop")
@@ -317,7 +331,9 @@ Environment:
   TMUX_AGENTS_CLAUDE_TITLE_BUILD_REGEX Regex to detect claude "building" from pane title (default: "^[[:space:]]*[braille-spinner][[:space:]]+")
   TMUX_AGENTS_CLAUDE_BUILD_REGEX  Regex to detect claude "building" (default: "^[[:space:]]*esc to interrupt[[:space:]]*$")
   TMUX_AGENTS_GEMINI_BUILD_REGEX  Regex to detect gemini "building" (default: "\(esc to cancel, [0-9]+[smhd]\)")
-  TMUX_AGENTS_CMD_ALLOWLIST   Command allowlist (default: "opencode,gemini,codex,claude")
+  TMUX_AGENTS_COPILOT_TITLE_BUILD_REGEX Regex to detect copilot "building" from pane title (default: "^[[:space:]]*🤖[[:space:]]+")
+  TMUX_AGENTS_COPILOT_BUILD_REGEX Regex to detect copilot "building" (default: "^[[:space:]]*[○◎●•·][[:space:]].*\(esc[[:space:]]+to[[:space:]]+(cancel|interrupt|stop)[^)]*\)[[:space:]]*$")
+  TMUX_AGENTS_CMD_ALLOWLIST   Command allowlist (default: "opencode,gemini,codex,claude,copilot")
 Flags:
   --json  Emit JSON records
   --popup-tsv Emit tab-separated records for agents-popup.sh
@@ -529,6 +545,15 @@ provider_cmdline_is_interactive() {
         app-server) return 1 ;;
       esac
       ;;
+    copilot)
+      # Ignore server and one-shot scripting invocations when matching the
+      # node wrapper command line for GitHub Copilot.
+      case "$normalized" in
+        *' --acp'*|*' --prompt '*|*' -p '*)
+          return 1
+          ;;
+      esac
+      ;;
   esac
 
   return 0
@@ -573,6 +598,7 @@ provider_from_text() {
 
 provider_from_pane_title() {
   local title="$1"
+  local pane_cmd="${2:-}"
   [[ -z "$title" ]] && return 1
   case "$title" in
     'OC | '*)
@@ -583,6 +609,17 @@ provider_from_pane_title() {
     'Claude Code | '*|'Claude | '*)
       [[ -n "${seen_providers[claude]+x}" ]] || return 1
       printf '%s' claude
+      return 0
+      ;;
+    'GitHub Copilot'*|'🤖 '*)
+      [[ -n "${seen_providers[copilot]+x}" ]] || return 1
+      printf '%s' copilot
+      return 0
+      ;;
+    'Copilot '*)
+      [[ -n "${seen_providers[copilot]+x}" ]] || return 1
+      [[ "$pane_cmd" == "node" ]] || return 1
+      printf '%s' copilot
       return 0
       ;;
   esac
@@ -643,6 +680,8 @@ opencode_footer_build_regex_default='^[[:space:]]*[^[:alnum:][:space:]]{2,}[[:sp
 claude_title_build_regex_default='^[[:space:]]*[⠁⠂⠄⡀⢀⠠⠐⠈⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏⣾⣽⣻⢿⡿⣟⣯⣷][[:space:]]+'
 claude_build_regex_default='^[[:space:]]*esc to interrupt[[:space:]]*$'
 gemini_build_regex_default='\(esc to cancel, [0-9]+[smhd]\)'
+copilot_title_build_regex_default='^[[:space:]]*🤖[[:space:]]+'
+copilot_build_regex_default='^[[:space:]]*[○◎●•·][[:space:]].*\(esc[[:space:]]+to[[:space:]]+(cancel|interrupt|stop)[^)]*\)[[:space:]]*$'
 
 tmux_list_panes() {
   tmux list-panes -a -F "$pane_list_format" 2>/dev/null || true
@@ -747,6 +786,44 @@ gemini_is_building_from_title_and_sample() {
 
   [[ -z "$sample" ]] && return 1
   sample_matches_regex "$sample" "$build_regex"
+}
+
+copilot_is_building_from_title_and_sample() {
+  local pane_title="${1:-}"
+  local sample="${2:-}"
+  local source_out_var="${3:-}"
+  local regex_out_var="${4:-}"
+
+  local source=""
+  local regex_used=""
+
+  local title_regex="${TMUX_AGENTS_COPILOT_TITLE_BUILD_REGEX:-$copilot_title_build_regex_default}"
+  if [[ -n "$pane_title" ]]; then
+    local title_check
+    title_check="$(trim_ws "$pane_title")"
+    if [[ -n "$title_check" ]] && sample_matches_regex "$title_check" "$title_regex"; then
+      source="pane_title"
+      regex_used="$title_regex"
+      [[ -n "$source_out_var" ]] && printf -v "$source_out_var" '%s' "$source"
+      [[ -n "$regex_out_var" ]] && printf -v "$regex_out_var" '%s' "$regex_used"
+      return 0
+    fi
+  fi
+
+  if [[ -n "$sample" ]]; then
+    local build_regex="${TMUX_AGENTS_COPILOT_BUILD_REGEX:-$copilot_build_regex_default}"
+    if sample_matches_regex "$sample" "$build_regex"; then
+      source="pane_sample"
+      regex_used="$build_regex"
+      [[ -n "$source_out_var" ]] && printf -v "$source_out_var" '%s' "$source"
+      [[ -n "$regex_out_var" ]] && printf -v "$regex_out_var" '%s' "$regex_used"
+      return 0
+    fi
+  fi
+
+  [[ -n "$source_out_var" ]] && printf -v "$source_out_var" '%s' ""
+  [[ -n "$regex_out_var" ]] && printf -v "$regex_out_var" '%s' ""
+  return 1
 }
 
 extract_last_line_containing() {
@@ -914,7 +991,7 @@ while IFS="$pane_delim" read -r session win_idx pane_idx pane_id pane_pid pane_c
   fi
 
   if ((pane_matched == 0)); then
-    pane_provider="$(provider_from_pane_title "$pane_title" 2>/dev/null || true)"
+    pane_provider="$(provider_from_pane_title "$pane_title" "$pane_cmd" 2>/dev/null || true)"
     if [[ -n "$pane_provider" ]]; then
       pane_matched=1
       add_match "pane_title: $pane_title"
@@ -1042,6 +1119,24 @@ while IFS="$pane_delim" read -r session win_idx pane_idx pane_id pane_pid pane_c
           if ((pane_building == 1)) && [[ -n "$gemini_regex" ]]; then
             add_match "gemini_build_regex: $gemini_regex"
           fi
+        fi
+        ;;
+      copilot)
+        copilot_source=""
+        copilot_regex=""
+        if copilot_is_building_from_title_and_sample "$pane_title" "" copilot_source copilot_regex; then
+          pane_building=1
+        elif ((fast == 0)); then
+          pane_sample="$(tmux_capture_pane_sample "$pane_id" "$sample_lines")"
+          if [[ -n "$pane_sample" ]] && copilot_is_building_from_title_and_sample "$pane_title" "$pane_sample" copilot_source copilot_regex; then
+            pane_building=1
+          fi
+        else
+          pane_building_known=0
+        fi
+        if [[ -n "$copilot_regex" ]]; then
+          add_match "copilot_build_source: $copilot_source"
+          add_match "copilot_build_regex: $copilot_regex"
         fi
         ;;
       opencode)
