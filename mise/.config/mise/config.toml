@@ -1,3 +1,6 @@
+[settings]
+idiomatic_version_file_enable_tools = ["python"]
+
 [tools]
 bun = "latest"
 java = "21"
@@ -5,7 +8,6 @@ node = "24"
 go = "latest"
 lua = "latest"
 rust = "stable"
-python = "latest"
 uv = "latest"
 ruby = "latest"
 pipx = "latest"
@@ -30,6 +32,7 @@ pipx = "latest"
 "pipx:httpie" = "latest"
 "pipx:pytest" = { version = "latest", uvx_args = "--with pytest-cov" }
 "pipx:ranger-fm" = "latest"
+python = "latest"
 
 # Ruby CLIs
 "gem:cocoapods" = "latest"
