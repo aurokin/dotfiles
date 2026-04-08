@@ -28,6 +28,7 @@ pipx = "latest"
 # Python CLIs
 "pipx:beautysh" = "latest"
 "pipx:httpie" = "latest"
+"pipx:pytest" = { version = "latest", uvx_args = "--with pytest-cov" }
 "pipx:ranger-fm" = "latest"
 
 # Ruby CLIs
