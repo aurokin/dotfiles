@@ -6,6 +6,7 @@ go = "latest"
 lua = "latest"
 rust = "stable"
 python = "latest"
+uv = "latest"
 ruby = "latest"
 pipx = "latest"
 "github:aurokin/clip-remote-sync" = { version = "latest", asset_pattern = "crs", bin = "crs" }
