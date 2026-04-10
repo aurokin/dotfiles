@@ -12,7 +12,7 @@ if ! tmux list-sessions >/dev/null 2>&1; then
   exit 0
 fi
 
-providers_raw="${TMUX_AGENTS_PROVIDERS:-opencode,gemini,codex,claude,copilot}"
+providers_raw="${TMUX_AGENTS_PROVIDERS:-opencode,gemini,codex,claude,copilot,pi}"
 providers_raw="${providers_raw//,/ }"
 providers=()
 old_ifs="$IFS"
@@ -39,6 +39,7 @@ register_provider gemini "gemini" "gemini" "esc to cancel"
 register_provider codex "codex" "codex" "esc to cancel|esc to interrupt|esc to stop"
 register_provider claude "claude" "claude" "esc to cancel|esc to interrupt|esc to stop"
 register_provider copilot "copilot|GitHub Copilot" "copilot" "esc to interrupt|esc to cancel|esc to stop"
+register_provider pi "(^|[^[:alnum:]])pi([^[:alnum:]]|$)" "pi" ""
 
 join_with_delim() {
   local delim="$1"
@@ -72,6 +73,7 @@ strip_known_prefixes() {
     'Claude Code | '*) s="${s#Claude Code | }" ;;
     'Claude | '*) s="${s#Claude | }" ;;
     'GitHub Copilot | '*) s="${s#GitHub Copilot | }" ;;
+    'π - '*) s="${s#π - }" ;;
   esac
   printf '%s' "$s"
 }
@@ -286,10 +288,10 @@ cmd_allowlist_default="$(join_with_delim ',' "${build_allowlist[@]}")"
 sample_regex_default="$(join_with_delim '|' "${build_sample_regexes[@]}")"
 
 if [[ -z "$pattern_default" ]]; then
-  pattern_default="opencode|gemini|codex|claude|copilot|GitHub Copilot"
+  pattern_default="opencode|gemini|codex|claude|copilot|GitHub Copilot|(^|[^[:alnum:]])pi([^[:alnum:]]|$)"
 fi
 if [[ -z "$cmd_allowlist_default" ]]; then
-  cmd_allowlist_default="opencode,gemini,codex,claude,copilot"
+  cmd_allowlist_default="opencode,gemini,codex,claude,copilot,pi"
 fi
 if [[ -z "$sample_regex_default" ]]; then
   sample_regex_default="esc to cancel|esc to interrupt|esc to stop"
@@ -321,8 +323,8 @@ usage() {
 Usage: find-agents-tmux.sh [--json] [--popup-tsv] [--fast] [--debug] [--deep]
 
 Environment:
-  TMUX_AGENTS_PROVIDERS       Comma or space-separated list (default: "opencode,gemini,codex,claude,copilot")
-  TMUX_AGENTS_PATTERN         Regex to identify agent panes (default: "opencode|gemini|codex|claude|copilot|GitHub Copilot")
+  TMUX_AGENTS_PROVIDERS       Comma or space-separated list (default: "opencode,gemini,codex,claude,copilot,pi")
+  TMUX_AGENTS_PATTERN         Regex to identify agent panes (default: computed from registered providers; pi uses word-boundary anchors)
   TMUX_AGENTS_SAMPLE_LINES    Lines to sample from visible pane tail (default: 30)
   TMUX_AGENTS_CODEX_STATUS_TAIL_LINES Lines from visible codex pane to scan for active status (default: 20)
   TMUX_AGENTS_SAMPLE_REGEX    Regex to detect "building" state (default: "esc to cancel|esc to interrupt|esc to stop")
@@ -334,7 +336,8 @@ Environment:
   TMUX_AGENTS_COPILOT_FAST_SAMPLE_LINES Lines to sample for fast Copilot detection (default: 20)
   TMUX_AGENTS_COPILOT_TITLE_BUILD_REGEX Regex to detect copilot "building" from pane title (default: "^[[:space:]]*🤖[[:space:]]+")
   TMUX_AGENTS_COPILOT_BUILD_REGEX Regex to detect copilot "building" (default: "^[[:space:]]*[○◎●•·][[:space:]].*\(esc[[:space:]]+to[[:space:]]+(cancel|interrupt|stop)[^)]*\)[[:space:]]*$")
-  TMUX_AGENTS_CMD_ALLOWLIST   Command allowlist (default: "opencode,gemini,codex,claude,copilot")
+  TMUX_AGENTS_PI_BUILD_REGEX  Regex to detect pi "building" from pane sample (default: braille spinner + "Working...")
+  TMUX_AGENTS_CMD_ALLOWLIST   Command allowlist (default: "opencode,gemini,codex,claude,copilot,pi")
 Flags:
   --json  Emit JSON records
   --popup-tsv Emit tab-separated records for agents-popup.sh
@@ -623,6 +626,11 @@ provider_from_pane_title() {
       printf '%s' copilot
       return 0
       ;;
+    'π - '*|'π '*)
+      [[ -n "${seen_providers[pi]+x}" ]] || return 1
+      printf '%s' pi
+      return 0
+      ;;
   esac
   return 1
 }
@@ -673,6 +681,20 @@ sample_matches_regex() {
 
   ((nocase_was_set)) || shopt -u nocasematch
   return 1
+}
+
+pi_build_regex_default='[⠁⠂⠄⡀⢀⠠⠐⠈⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏⣾⣽⣻⢿⡿⣟⣯⣷][[:space:]]+Working\.\.\.'
+
+pi_is_building_from_sample() {
+  local sample="${1:-}"
+  local regex_out_var="${2:-}"
+
+  [[ -z "$sample" ]] && return 1
+
+  local build_regex="${TMUX_AGENTS_PI_BUILD_REGEX:-$pi_build_regex_default}"
+  [[ -n "$regex_out_var" ]] && printf -v "$regex_out_var" '%s' "$build_regex"
+
+  sample_matches_regex "$sample" "$build_regex"
 }
 
 opencode_footer_build_regex_default='^[[:space:]]*[^[:alnum:][:space:]]{2,}[[:space:]]+esc interrupt'
@@ -1182,6 +1204,20 @@ while IFS="$pane_delim" read -r session win_idx pane_idx pane_id pane_pid pane_c
         if [[ -n "$opencode_footer" ]]; then
           add_match "opencode_footer: $opencode_footer"
           add_match "opencode_footer_build_regex: $opencode_regex"
+        fi
+        ;;
+      pi)
+        pi_regex=""
+        if ((fast == 0)); then
+          pane_sample="$(tmux_capture_pane_sample "$pane_id" "$sample_lines")"
+          if [[ -n "$pane_sample" ]] && pi_is_building_from_sample "$pane_sample" pi_regex; then
+            pane_building=1
+          fi
+        else
+          pane_building_known=0
+        fi
+        if ((pane_building == 1)) && [[ -n "$pi_regex" ]]; then
+          add_match "pi_build_regex: $pi_regex"
         fi
         ;;
       *)
