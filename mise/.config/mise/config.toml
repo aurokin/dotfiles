@@ -22,6 +22,7 @@ pipx = "latest"
 "npm:@google/gemini-cli" = "latest"
 "npm:@github/copilot" = "latest"
 "npm:skills" = "latest"
+"npm:@mariozechner/pi-coding-agent" = "latest"
 
 # Claude Code is managed separately. The current upstream CLI ships native
 # install/update flows (`claude install`, `claude update`) rather than staying
