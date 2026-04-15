@@ -30,10 +30,12 @@ pipx = "latest"
 # fully self-contained as a plain npm tool under mise.
 
 # Python CLIs
+"pipx:basedpyright" = "latest"
 "pipx:beautysh" = "latest"
 "pipx:httpie" = "latest"
 "pipx:pytest" = { version = "latest", uvx_args = "--with pytest-cov" }
 "pipx:ranger-fm" = "latest"
+"pipx:ruff" = "latest"
 python = "latest"
 
 # Ruby CLIs
