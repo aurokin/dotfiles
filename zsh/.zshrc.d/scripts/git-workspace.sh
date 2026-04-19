@@ -3,6 +3,8 @@ set -euo pipefail
 IFS=$'\n\t'
 
 script_name="$(basename "$0")"
+readonly CONTAINER_MARKER_NAME=".git-worktree-container"
+readonly STATUS_ROW_SEP=$'\x1f'
 
 # Return codes (used for pull job summarization).
 readonly RC_OK=0
@@ -54,7 +56,7 @@ Usage:
 
 Environment:
   GIT_WORKSPACE_JOBS  Default for --jobs (default: min(CPU, 8))
-  GIT_WORKSPACE_CACHE_DIR  Cache dir (default: $XDG_CACHE_HOME/git-workspace or ~/.cache/git-workspace)
+  GIT_WORKSPACE_CACHE_DIR  Cache dir (default: \$XDG_CACHE_HOME/git-workspace or ~/.cache/git-workspace)
   GIT_WORKSPACE_FETCH_TTL_SECONDS  Treat remote as fresh for N seconds after a successful fetch (default: 120)
 
 Notes:
@@ -64,8 +66,8 @@ Notes:
 Scans:
   - <path> (default: .)
   - each immediate subdirectory (depth 1)
-  - if a directory is a linked checkout (.git is a file; worktree/submodule),
-    also scans its immediate subdirectories (one extra level)
+  - each immediate grandchild under linked checkouts and worktree container
+    directories (one extra level)
 
 Status report includes:
   - ahead/behind vs upstream (or origin/<branch> fallback)
@@ -118,6 +120,10 @@ is_git_repo_root() {
 is_linked_checkout() {
   [[ -f "$1/.git" ]] || return 1
   grep -q '^gitdir: ' "$1/.git" 2>/dev/null
+}
+
+is_worktree_container_dir() {
+  [[ -f "$1/$CONTAINER_MARKER_NAME" ]]
 }
 
 git_remote_exists() {
@@ -449,8 +455,16 @@ status_row_tsv() {
   if ! collect_porcelain "$repo"; then
     local display_path
     display_path="$(relpath "$BASE_ABS" "$repo")"
-    printf '%s\t%s\t%s\t%s\t%s\t%d\t%d\t%d\t%d\n' \
-      "$display_path" "" "" "status-error" "" 0 0 0 0
+    printf '%s%s%s%s%s%s%s%s%s%s%d%s%d%s%d%s%d\n' \
+      "$display_path" "$STATUS_ROW_SEP" \
+      "" "$STATUS_ROW_SEP" \
+      "" "$STATUS_ROW_SEP" \
+      "status-error" "$STATUS_ROW_SEP" \
+      "" "$STATUS_ROW_SEP" \
+      0 "$STATUS_ROW_SEP" \
+      0 "$STATUS_ROW_SEP" \
+      0 "$STATUS_ROW_SEP" \
+      0
     return 0
   fi
 
@@ -472,8 +486,7 @@ status_row_tsv() {
     if [[ -n "$fetch_remote" && -n "$fetch_branch" ]]; then
       # These defaults avoid slow recursive submodule fetches and tag downloads.
       local refspec="+refs/heads/$fetch_branch:refs/remotes/$fetch_remote/$fetch_branch"
-      local err=""
-      if ! err="$(lock_run "$repo" git -C "$repo" fetch --prune --quiet --no-tags --recurse-submodules=no "$fetch_remote" "$refspec" 2>&1)"; then
+      if ! lock_run "$repo" git -C "$repo" fetch --prune --quiet --no-tags --recurse-submodules=no "$fetch_remote" "$refspec" >/dev/null 2>&1; then
         fetch_status="fetch-error"
       else
         fetched=1
@@ -551,9 +564,16 @@ status_row_tsv() {
   local display_path
   display_path="$(relpath "$BASE_ABS" "$repo")"
 
-  printf '%s\t%s\t%s\t%s\t%s\t%d\t%d\t%d\t%d\n' \
-    "$display_path" "$branch_display" "$compare_ref" "$sync" "$dirty" \
-    "$behind_flag" "$dirty_flag" "$no_upstream_flag" "$fetch_error_flag"
+  printf '%s%s%s%s%s%s%s%s%s%s%d%s%d%s%d%s%d\n' \
+    "$display_path" "$STATUS_ROW_SEP" \
+    "$branch_display" "$STATUS_ROW_SEP" \
+    "$compare_ref" "$STATUS_ROW_SEP" \
+    "$sync" "$STATUS_ROW_SEP" \
+    "$dirty" "$STATUS_ROW_SEP" \
+    "$behind_flag" "$STATUS_ROW_SEP" \
+    "$dirty_flag" "$STATUS_ROW_SEP" \
+    "$no_upstream_flag" "$STATUS_ROW_SEP" \
+    "$fetch_error_flag"
 }
 
 pull_job() {
@@ -732,8 +752,9 @@ discover_repos() {
 
   BASE_ABS="$base_abs"
   REPOS=()
-  WT_DIRS=()
+  CHILD_SCAN_DIRS=()
   declare -gA _repo_seen=()
+  declare -gA _child_scan_seen=()
 
   add_repo() {
     local dir="$1"
@@ -744,9 +765,17 @@ discover_repos() {
     fi
     _repo_seen["$abs"]=1
     REPOS+=("$abs")
-    if is_linked_checkout "$abs"; then
-      WT_DIRS+=("$abs")
+  }
+
+  add_child_scan_dir() {
+    local dir="$1"
+    local abs
+    abs="$(abs_dir "$dir")" || return 0
+    if [[ -n "${_child_scan_seen[$abs]+x}" ]]; then
+      return 0
     fi
+    _child_scan_seen["$abs"]=1
+    CHILD_SCAN_DIRS+=("$abs")
   }
 
   local candidates=()
@@ -757,6 +786,9 @@ discover_repos() {
   for d in "$base_abs"/*; do
     [[ -d "$d" ]] || continue
     candidates+=("$d")
+    if is_linked_checkout "$d" || is_worktree_container_dir "$d"; then
+      add_child_scan_dir "$d"
+    fi
   done
 
   local c
@@ -765,9 +797,9 @@ discover_repos() {
     add_repo "$c"
   done
 
-  # One extra level for linked checkouts (worktrees/submodules).
+  # One extra level for worktree containers and linked checkouts.
   local wt
-  for wt in "${WT_DIRS[@]}"; do
+  for wt in "${CHILD_SCAN_DIRS[@]}"; do
     shopt -s nullglob
     for d in "$wt"/*; do
       [[ -d "$d" ]] || continue
@@ -868,7 +900,7 @@ print_status() {
     line="$(<"$tmp/$idx.tsv")"
 
     local pth br rem syn dir behind_flag dirty_flag no_upstream_flag fetch_error_flag
-    IFS=$'\t' read -r pth br rem syn dir behind_flag dirty_flag no_upstream_flag fetch_error_flag <<<"$line"
+    IFS="$STATUS_ROW_SEP" read -r pth br rem syn dir behind_flag dirty_flag no_upstream_flag fetch_error_flag <<<"$line"
 
     row_path+=("$pth")
     row_branch+=("$br")
@@ -1021,11 +1053,11 @@ run_pull() {
     fi
 
     case "$code" in
-      $RC_OK) ((++pulled)) ;;
-      $RC_SKIP_UP_TO_DATE) ((++skipped_up_to_date)) ;;
-      $RC_SKIP_DETACHED) ((++skipped_detached)) ;;
-      $RC_SKIP_DIRTY) ((++skipped_dirty)) ;;
-      $RC_SKIP_NO_REMOTE) ((++skipped_no_remote)) ;;
+      "$RC_OK") ((++pulled)) ;;
+      "$RC_SKIP_UP_TO_DATE") ((++skipped_up_to_date)) ;;
+      "$RC_SKIP_DETACHED") ((++skipped_detached)) ;;
+      "$RC_SKIP_DIRTY") ((++skipped_dirty)) ;;
+      "$RC_SKIP_NO_REMOTE") ((++skipped_no_remote)) ;;
       *) ((++failed)) ;;
     esac
   done

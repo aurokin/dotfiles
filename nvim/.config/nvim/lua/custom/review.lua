@@ -1,5 +1,6 @@
 local M = {}
 local uv = vim.uv or vim.loop
+local path_clipboard = require 'custom.path_clipboard'
 
 local state = {
     last_branch_target = nil,
@@ -182,6 +183,13 @@ local function open_diffview(range)
     end
 end
 
+local function open_file_history(args)
+    local ok, err = pcall(vim.api.nvim_cmd, { cmd = 'DiffviewFileHistory', args = args or {} }, {})
+    if not ok then
+        notify(err, vim.log.levels.ERROR)
+    end
+end
+
 local function prompt(options, on_confirm)
     vim.ui.input(options, function(input)
         local value = trim(input)
@@ -191,6 +199,394 @@ local function prompt(options, on_confirm)
 
         on_confirm(value)
     end)
+end
+
+local function current_diffview()
+    local ok, lib = pcall(require, 'diffview.lib')
+    if not ok then
+        return nil
+    end
+
+    return lib.get_current_view()
+end
+
+local function current_diffview_panel_item(view)
+    if not view or not view.panel or not view.panel.is_focused or not view.panel.get_item_at_cursor then
+        return nil
+    end
+
+    if not view.panel:is_focused() then
+        return nil
+    end
+
+    local ok, item = pcall(view.panel.get_item_at_cursor, view.panel)
+    if not ok then
+        return nil
+    end
+
+    return item
+end
+
+local function is_diffview_file_entry(item)
+    return item
+        and item.path
+        and item.path ~= ''
+        and item.files == nil
+        and type(item.collapsed) ~= 'boolean'
+end
+
+local function current_diffview_focused_file(view)
+    if not view or not view.cur_layout or not view.cur_layout.windows then
+        return nil
+    end
+
+    for _, win in ipairs(view.cur_layout.windows) do
+        if win
+            and win.is_focused
+            and win:is_focused()
+            and win.file
+            and not win.file.nulled
+            and win.file.path
+            and win.file.path ~= ''
+            and win.file.path ~= 'null'
+        then
+            return win.file
+        end
+    end
+
+    return nil
+end
+
+local current_review_rev
+
+local function is_file_history_view(view)
+    return view
+        and view.panel
+        and view.panel.get_log_options
+        and view.panel.find_entry
+        and view.infer_cur_file
+        and not (view.left and view.right)
+end
+
+local function current_review_root()
+    local view = current_diffview()
+    if view and view.adapter and view.adapter.ctx and view.adapter.ctx.toplevel then
+        return normalize_path(view.adapter.ctx.toplevel)
+    end
+
+    return git_root()
+end
+
+local function current_review_entry(view)
+    if not view then
+        return nil
+    end
+
+    if view.panel then
+        if type(view.panel.cur_file) == 'table' and view.panel.cur_file.path and view.panel.cur_file.path ~= 'null' then
+            return view.panel.cur_file
+        end
+
+        if view.panel.cur_item and view.panel.cur_item[2] and view.panel.cur_item[2].path and view.panel.cur_item[2].path ~= 'null' then
+            return view.panel.cur_item[2]
+        end
+    end
+
+    if view.cur_file then
+        local ok, entry = pcall(view.cur_file, view)
+        if ok and entry and entry.path then
+            return entry
+        end
+    end
+
+    return nil
+end
+
+local function current_review_side()
+    local view = current_diffview()
+    local focused_file = current_diffview_focused_file(view)
+    if not focused_file or not focused_file.symbol then
+        return nil
+    end
+
+    return ({
+        a = 'left',
+        b = 'right',
+        c = 'c',
+        d = 'd',
+    })[focused_file.symbol] or focused_file.symbol
+end
+
+local function current_review_file()
+    local view = current_diffview()
+    local entry = current_review_entry(view)
+    if entry and entry.path and entry.path ~= '' and entry.path ~= 'null' then
+        return entry.path
+    end
+
+    local focused_file = current_diffview_focused_file(view)
+    if focused_file then
+        return focused_file.path
+    end
+
+    local panel_item = current_diffview_panel_item(view)
+    if panel_item ~= nil then
+        if is_diffview_file_entry(panel_item) then
+            return panel_item.path
+        end
+
+        -- Commit rows intentionally do not imply a file selection unless the
+        -- history view already narrows them to a single tracked file.
+        if not (is_file_history_view(view) and view.panel and view.panel.single_file) then
+            return nil
+        end
+    end
+
+    if view and view.infer_cur_file then
+        local ok, file = pcall(view.infer_cur_file, view)
+        if ok and is_diffview_file_entry(file) then
+            return file.path
+        end
+    end
+
+    return path_clipboard.preferred_buf_path(0)
+end
+
+local function append_review_history_option_args(args, log_options)
+    if not log_options then
+        return
+    end
+
+    local boolean_flags = {
+        { 'follow', '--follow' },
+        { 'first_parent', '--first-parent' },
+        { 'show_pulls', '--show-pulls' },
+        { 'reflog', '--reflog' },
+        { 'walk_reflogs', '--walk-reflogs' },
+        { 'all', '--all' },
+        { 'merges', '--merges' },
+        { 'no_merges', '--no-merges' },
+        { 'reverse', '--reverse' },
+        { 'cherry_pick', '--cherry-pick' },
+        { 'left_only', '--left-only' },
+        { 'right_only', '--right-only' },
+    }
+
+    for _, item in ipairs(boolean_flags) do
+        local key, flag = item[1], item[2]
+        if log_options[key] then
+            table.insert(args, flag)
+        end
+    end
+
+    local valued_flags = {
+        { 'rev_range', '--range=' },
+        { 'base', '--base=' },
+        { 'max_count', '--max-count=' },
+        { 'diff_merges', '--diff-merges=' },
+        { 'author', '--author=' },
+        { 'grep', '--grep=' },
+        { 'after', '--after=' },
+        { 'before', '--before=' },
+    }
+
+    for _, item in ipairs(valued_flags) do
+        local key, prefix = item[1], item[2]
+        local value = log_options[key]
+        if value ~= nil and value ~= '' then
+            table.insert(args, prefix .. value)
+        end
+    end
+
+    if log_options.G and log_options.G ~= '' then
+        table.insert(args, '-G' .. log_options.G)
+    end
+
+    if log_options.S and log_options.S ~= '' then
+        table.insert(args, '-S' .. log_options.S)
+    end
+
+    if log_options.L then
+        for _, trace in ipairs(log_options.L) do
+            if trace and trace ~= '' then
+                table.insert(args, '-L' .. trace)
+            end
+        end
+    end
+end
+
+local function extend_review_history_args(args)
+    local view = current_diffview()
+    if is_file_history_view(view) then
+        append_review_history_option_args(args, view.panel:get_log_options())
+        return
+    end
+
+    local rev = current_review_rev()
+    if rev and rev ~= '' then
+        table.insert(args, '--range=' .. rev)
+    end
+end
+
+current_review_rev = function()
+    local view = current_diffview()
+    if not view then
+        return nil
+    end
+
+    if view.left and view.right and view.adapter and view.adapter.rev_to_pretty_string then
+        if view.rev_arg and view.rev_arg ~= '' then
+            return view.rev_arg
+        end
+
+        local ok, rev = pcall(view.adapter.rev_to_pretty_string, view.adapter, view.left, view.right)
+        if ok then
+            return trim(rev)
+        end
+
+        return nil
+    end
+
+    if view.panel and view.panel.find_entry and view.infer_cur_file then
+        local panel_item = current_diffview_panel_item(view)
+        if panel_item and panel_item.commit and panel_item.commit.hash then
+            return panel_item.commit.hash .. '^!'
+        end
+
+        local ok, file = pcall(view.infer_cur_file, view)
+        if ok and is_diffview_file_entry(file) then
+            local ok_entry, entry = pcall(view.panel.find_entry, view.panel, file)
+            if ok_entry and entry and entry.commit and entry.commit.hash then
+                return entry.commit.hash .. '^!'
+            end
+        end
+
+        if view.panel.get_log_options then
+            local log_options = view.panel:get_log_options()
+            if log_options and log_options.rev_range and log_options.rev_range ~= '' then
+                return log_options.rev_range
+            end
+        end
+    end
+
+    return nil
+end
+
+local function current_review_line()
+    local filetype = vim.bo.filetype
+    local bufname = vim.api.nvim_buf_get_name(0)
+
+    if filetype == 'DiffviewFiles' or filetype == 'DiffviewFileHistory' then
+        return nil
+    end
+
+    if bufname:match '^diffview:///panels/' or bufname:match '^diffview://.*/log/%d+/' then
+        return nil
+    end
+
+    return vim.api.nvim_win_get_cursor(0)[1]
+end
+
+local function format_review_reference(opts)
+    opts = opts or {}
+
+    local root = current_review_root()
+    local file = current_review_file()
+    local rev = current_review_rev()
+    local entry = current_review_entry(current_diffview())
+    local side = opts.with_line and file and current_review_side() or nil
+    local line = opts.with_line and file and current_review_line() or nil
+
+    if not root and not file and not rev then
+        return nil
+    end
+
+    local parts = {}
+    if root and root ~= '' then
+        table.insert(parts, ('repo=%s'):format(root))
+    end
+    if rev and rev ~= '' then
+        table.insert(parts, ('rev=%s'):format(rev))
+    end
+    if file and file ~= '' then
+        if line then
+            file = ('%s:%d'):format(file, line)
+        end
+        table.insert(parts, ('file=%s'):format(file))
+    end
+    if entry and entry.oldpath and entry.oldpath ~= '' and entry.oldpath ~= entry.path then
+        table.insert(parts, ('old_file=%s'):format(entry.oldpath))
+    end
+    if side and side ~= '' then
+        table.insert(parts, ('side=%s'):format(side))
+    end
+
+    return table.concat(parts, ' ')
+end
+
+local function format_review_summary()
+    local view = current_diffview()
+    local rev = current_review_rev()
+    if rev and rev ~= '' then
+        local commit = rev:match('^(.+)%^!$')
+        if commit then
+            return ('reviewing commit %s'):format(commit)
+        end
+
+        local from, to = rev:match('^(.+)%.%.%.(.+)$')
+        if from and to then
+            return ('reviewing branch %s -> %s'):format(from, to)
+        end
+
+        from, to = rev:match('^(.+)%.%.(.+)$')
+        if from and to then
+            return ('reviewing branch %s -> %s'):format(from, to)
+        end
+
+        return ('reviewing rev %s'):format(rev)
+    end
+
+    local root = current_review_root()
+    if view and view.panel and view.panel.get_log_options then
+        local file = current_review_file()
+        if file and file ~= '' then
+            return ('reviewing history for %s'):format(file)
+        end
+
+        if root then
+            local ref = current_ref(root)
+            if ref and ref ~= '' then
+                return ('reviewing branch %s history'):format(ref)
+            end
+        end
+    end
+
+    if root then
+        local ref = current_ref(root)
+        if ref and ref ~= '' then
+            return ('reviewing uncommitted changes on %s'):format(ref)
+        end
+    end
+
+    return nil
+end
+
+local function copy_to_clipboard(text)
+    if not text or text == '' then
+        notify('No review context', vim.log.levels.WARN)
+        return
+    end
+
+    vim.fn.setreg('+', text)
+    notify(text)
+end
+
+local function copy_review_summary()
+    copy_to_clipboard(format_review_summary())
+end
+
+local function copy_review_reference(opts)
+    copy_to_clipboard(format_review_reference(opts))
 end
 
 function M.review_uncommitted()
@@ -222,6 +618,82 @@ function M.blame_line()
     end
 
     gitsigns.blame_line { full = true }
+end
+
+function M.review_commit()
+    local root, err = current_review_root()
+    if not root then
+        notify(err ~= '' and err or 'Not inside a git repository', vim.log.levels.WARN)
+        return
+    end
+
+    local ok_builtin, builtin = pcall(require, 'telescope.builtin')
+    local ok_actions, actions = pcall(require, 'telescope.actions')
+    local ok_state, action_state = pcall(require, 'telescope.actions.state')
+    if not ok_builtin or not ok_actions or not ok_state then
+        notify('telescope.nvim is not available', vim.log.levels.ERROR)
+        return
+    end
+
+    builtin.git_commits {
+        cwd = root,
+        prompt_title = 'Review Commits',
+        attach_mappings = function(prompt_bufnr)
+            actions.select_default:replace(function()
+                local selection = action_state.get_selected_entry()
+                actions.close(prompt_bufnr)
+
+                if not selection or not selection.value or selection.value == '' then
+                    notify('No commit selected', vim.log.levels.WARN)
+                    return
+                end
+
+                open_diffview(selection.value .. '^!')
+            end)
+
+            return true
+        end,
+    }
+end
+
+function M.review_history()
+    local root, err = current_review_root()
+    if not root then
+        notify(err ~= '' and err or 'Not inside a git repository', vim.log.levels.WARN)
+        return
+    end
+
+    local args = { '-C' .. root }
+    extend_review_history_args(args)
+    open_file_history(args)
+end
+
+function M.review_file_history()
+    local root, err = current_review_root()
+    if not root then
+        notify(err ~= '' and err or 'Not inside a git repository', vim.log.levels.WARN)
+        return
+    end
+
+    local file = current_review_file()
+    if not file or file == '' then
+        notify('No file selected', vim.log.levels.WARN)
+        return
+    end
+
+    local args = { '-C' .. root }
+    extend_review_history_args(args)
+    table.insert(args, file)
+
+    open_file_history(args)
+end
+
+function M.copy_review_reference()
+    copy_review_reference { with_line = false }
+end
+
+function M.copy_review_reference_with_line()
+    copy_review_reference { with_line = true }
 end
 
 function M.compare_branch(exact)
@@ -306,7 +778,12 @@ function M.setup()
 
     vim.keymap.set('n', '<leader>zu', M.review_uncommitted, { desc = 'Review Uncommitted' })
     vim.keymap.set('n', '<leader>zf', M.review_file, { desc = 'Review File Diff' })
-    vim.keymap.set('n', '<leader>zp', M.preview_hunk, { desc = 'Preview Hunk' })
+    vim.keymap.set('n', '<leader>zg', M.review_commit, { desc = 'Review Commit' })
+    vim.keymap.set('n', '<leader>zh', M.review_history, { desc = 'Review History' })
+    vim.keymap.set('n', '<leader>zH', M.review_file_history, { desc = 'Review File History' })
+    vim.keymap.set('n', '<leader>zp', copy_review_summary, { desc = 'Put Review Summary' })
+    vim.keymap.set('n', '<leader>zP', M.copy_review_reference_with_line, { desc = 'Put Review Detail' })
+    vim.keymap.set('n', '<leader>zv', M.preview_hunk, { desc = 'Preview Hunk' })
     vim.keymap.set('n', '<leader>zb', M.blame_line, { desc = 'Blame Line' })
     vim.keymap.set('n', '<leader>zc', function()
         M.compare_branch(false)
