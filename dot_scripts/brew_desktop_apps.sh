@@ -5,9 +5,11 @@ brew install --cask alacritty
 brew install --cask ghostty
 brew install --cask kitty
 brew install --cask betterdisplay
+brew install --cask chatgpt-atlas
+brew install --cask claude
 brew install --cask claude-code
 brew install --cask codex
-brew install --cask dozer
+brew install --cask codex-app
 brew install --cask font-monaspace-nerd-font
 brew install --cask font-monaspice-nerd-font
 brew install --cask font-noto-sans-symbols-2
