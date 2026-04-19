@@ -83,6 +83,8 @@ alias rr="rm -rf"
 alias twm="~/.zshrc.d/scripts/twigsmux.sh"
 alias agents="$HOME/.zshrc.d/scripts/find-agents-tmux.sh"
 alias pscripts="$HOME/.zshrc.d/scripts/list-package-json-scripts.sh"
+# macOS only
+alias yawn="pmset displaysleepnow"
 
 # Bat Tokyo Night
 export BAT_THEME="tokyonight_night"
