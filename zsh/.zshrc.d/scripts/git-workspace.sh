@@ -3,8 +3,14 @@ set -euo pipefail
 IFS=$'\n\t'
 
 script_name="$(basename "$0")"
-readonly CONTAINER_MARKER_NAME=".git-worktree-container"
 readonly STATUS_ROW_SEP=$'\x1f'
+script_dir="$(
+  cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null
+  pwd -P
+)"
+
+# shellcheck source=/dev/null
+source "$script_dir/git-worktree-paths.sh"
 
 # Return codes (used for pull job summarization).
 readonly RC_OK=0
@@ -39,6 +45,7 @@ CLEANUP_DIRS=()
 
 cleanup() {
   set +e
+  set +u
   local d
   for d in "${CLEANUP_DIRS[@]}"; do
     [[ -n "$d" ]] || continue
@@ -65,9 +72,9 @@ Notes:
 
 Scans:
   - <path> (default: .)
-  - each immediate subdirectory (depth 1)
-  - each immediate grandchild under linked checkouts and worktree container
-    directories (one extra level)
+  - outside ~/worktrees: the path itself plus each immediate subdirectory
+  - at ~/worktrees exactly: direct repos at ~/worktrees/<project> and nested repos
+    at ~/worktrees/<project>/<branch>
 
 Status report includes:
   - ahead/behind vs upstream (or origin/<branch> fallback)
@@ -90,10 +97,7 @@ die() {
 }
 
 abs_dir() {
-  (
-    cd "$1" 2>/dev/null
-    pwd -P
-  )
+  git_worktree_abs_dir "$1"
 }
 
 relpath() {
@@ -108,28 +112,98 @@ relpath() {
   fi
 }
 
-has_git_marker() {
-  [[ -d "$1/.git" || -f "$1/.git" ]]
-}
-
 is_git_repo_root() {
-  has_git_marker "$1" || return 1
-  git -C "$1" rev-parse --is-inside-work-tree >/dev/null 2>&1
+  local path="$1"
+  local path_abs=""
+  local top_level=""
+  local git_dir=""
+
+  path_abs="$(abs_dir "$path" 2>/dev/null || true)"
+  [[ -n "$path_abs" ]] || return 1
+
+  top_level="$(git -C "$path_abs" rev-parse --show-toplevel 2>/dev/null || true)"
+  if [[ -n "$top_level" ]]; then
+    [[ "$(abs_dir "$top_level" 2>/dev/null || true)" == "$path_abs" ]] && return 0
+  fi
+
+  git_dir="$(git -C "$path_abs" rev-parse --absolute-git-dir 2>/dev/null || true)"
+  [[ -n "$git_dir" && "$(abs_dir "$git_dir" 2>/dev/null || true)" == "$path_abs" ]]
 }
 
-is_linked_checkout() {
-  [[ -f "$1/.git" ]] || return 1
-  grep -q '^gitdir: ' "$1/.git" 2>/dev/null
-}
+is_bare_repo_root() {
+  local path="$1"
+  local path_abs=""
+  local git_dir=""
 
-is_worktree_container_dir() {
-  [[ -f "$1/$CONTAINER_MARKER_NAME" ]]
+  path_abs="$(abs_dir "$path" 2>/dev/null || true)"
+  [[ -n "$path_abs" ]] || return 1
+
+  git_dir="$(git -C "$path_abs" rev-parse --absolute-git-dir 2>/dev/null || true)"
+  [[ -n "$git_dir" ]] || return 1
+  [[ "$(abs_dir "$git_dir" 2>/dev/null || true)" == "$path_abs" ]] || return 1
+  git -C "$path_abs" rev-parse --is-bare-repository 2>/dev/null | grep -qx true
 }
 
 git_remote_exists() {
   local repo="$1"
   local remote="$2"
   git -C "$repo" remote get-url "$remote" >/dev/null 2>&1
+}
+
+split_upstream_ref() {
+  local repo="$1"
+  local upstream="$2"
+  local candidate_remote=""
+
+  SPLIT_UPSTREAM_REMOTE=""
+  SPLIT_UPSTREAM_BRANCH=""
+  [[ -n "$upstream" ]] || return 1
+
+  while IFS= read -r candidate_remote; do
+    [[ -n "$candidate_remote" ]] || continue
+    if [[ "$upstream" == "$candidate_remote/"* ]]; then
+      SPLIT_UPSTREAM_REMOTE="$candidate_remote"
+      SPLIT_UPSTREAM_BRANCH="${upstream#"$candidate_remote"/}"
+      [[ -n "$SPLIT_UPSTREAM_BRANCH" ]] || return 1
+      return 0
+    fi
+  done < <(git -C "$repo" remote)
+
+  return 1
+}
+
+resolve_branch_tracking_target() {
+  local repo="$1"
+  local branch_head="$2"
+  local tracked_remote=""
+  local tracked_merge=""
+
+  TRACKING_TARGET_KIND=""
+  TRACKING_TARGET_REMOTE=""
+  TRACKING_TARGET_BRANCH=""
+
+  [[ -n "$branch_head" && "$branch_head" != "(detached)" ]] || return 1
+
+  tracked_remote="$(git -C "$repo" config --get "branch.$branch_head.remote" 2>/dev/null || true)"
+  tracked_merge="$(git -C "$repo" config --get "branch.$branch_head.merge" 2>/dev/null || true)"
+  [[ -n "$tracked_remote" && "$tracked_merge" == refs/heads/* ]] || return 1
+
+  TRACKING_TARGET_BRANCH="${tracked_merge#refs/heads/}"
+  [[ -n "$TRACKING_TARGET_BRANCH" ]] || return 1
+
+  if [[ "$tracked_remote" == "." ]]; then
+    TRACKING_TARGET_KIND="local"
+    return 0
+  fi
+
+  if git_remote_exists "$repo" "$tracked_remote"; then
+    TRACKING_TARGET_KIND="remote"
+    TRACKING_TARGET_REMOTE="$tracked_remote"
+    return 0
+  fi
+
+  TRACKING_TARGET_BRANCH=""
+  return 1
 }
 
 # Globals filled by collect_porcelain()
@@ -216,6 +290,15 @@ compare_ref_for_repo() {
   local repo="$1"
   local branch_head="$2"
   local upstream="$3"
+
+  if resolve_branch_tracking_target "$repo" "$branch_head"; then
+    if [[ "$TRACKING_TARGET_KIND" == "local" ]]; then
+      printf '%s' "$TRACKING_TARGET_BRANCH"
+    else
+      printf '%s/%s' "$TRACKING_TARGET_REMOTE" "$TRACKING_TARGET_BRANCH"
+    fi
+    return 0
+  fi
 
   if [[ -n "$upstream" ]]; then
     printf '%s' "$upstream"
@@ -452,6 +535,22 @@ status_row_tsv() {
   local repo="$1"
   local fetch_enabled="$2"
 
+  if is_bare_repo_root "$repo"; then
+    local display_path
+    display_path="$(relpath "$BASE_ABS" "$repo")"
+    printf '%s%s%s%s%s%s%s%s%s%s%d%s%d%s%d%s%d\n' \
+      "$display_path" "$STATUS_ROW_SEP" \
+      "" "$STATUS_ROW_SEP" \
+      "" "$STATUS_ROW_SEP" \
+      "bare-repo" "$STATUS_ROW_SEP" \
+      "" "$STATUS_ROW_SEP" \
+      0 "$STATUS_ROW_SEP" \
+      0 "$STATUS_ROW_SEP" \
+      0 "$STATUS_ROW_SEP" \
+      0
+    return 0
+  fi
+
   if ! collect_porcelain "$repo"; then
     local display_path
     display_path="$(relpath "$BASE_ABS" "$repo")"
@@ -473,11 +572,20 @@ status_row_tsv() {
   if ((fetch_enabled)); then
     local fetch_remote=""
     local fetch_branch=""
+    local tracking_kind=""
 
     # Targeted fetch: only the tracked branch.
-    if [[ -n "$POR_UPSTREAM" ]]; then
-      fetch_remote="${POR_UPSTREAM%%/*}"
-      fetch_branch="${POR_UPSTREAM#*/}"
+    if resolve_branch_tracking_target "$repo" "$POR_BRANCH_HEAD"; then
+      tracking_kind="$TRACKING_TARGET_KIND"
+      if [[ "$tracking_kind" == "remote" ]]; then
+        fetch_remote="$TRACKING_TARGET_REMOTE"
+        fetch_branch="$TRACKING_TARGET_BRANCH"
+      fi
+    elif [[ -n "$POR_UPSTREAM" ]]; then
+      if split_upstream_ref "$repo" "$POR_UPSTREAM"; then
+        fetch_remote="$SPLIT_UPSTREAM_REMOTE"
+        fetch_branch="$SPLIT_UPSTREAM_BRANCH"
+      fi
     elif [[ -n "$POR_BRANCH_HEAD" && "$POR_BRANCH_HEAD" != "(detached)" ]] && git_remote_exists "$repo" origin; then
       fetch_remote="origin"
       fetch_branch="$POR_BRANCH_HEAD"
@@ -586,6 +694,12 @@ pull_job() {
   local force_fetch="$7"
   shift 7
   local -a extra_pull_args=("$@")
+ 
+  if is_bare_repo_root "$repo"; then
+    echo "==> $display_path"
+    echo "SKIP: bare repo"
+    return $RC_SKIP_NO_REMOTE
+  fi
 
   if ! collect_porcelain "$repo"; then
     echo "==> $display_path"
@@ -681,9 +795,24 @@ pull_job() {
   local remote=""
   local remote_branch=""
   local upstream="$POR_UPSTREAM"
-  if [[ -n "$upstream" ]]; then
-    remote="${upstream%%/*}"
-    remote_branch="${upstream#*/}"
+  local has_local_upstream=0
+  local local_upstream_branch=""
+  if resolve_branch_tracking_target "$repo" "$POR_BRANCH_HEAD"; then
+    if [[ "$TRACKING_TARGET_KIND" == "local" ]]; then
+      has_local_upstream=1
+      local_upstream_branch="$TRACKING_TARGET_BRANCH"
+    else
+      remote="$TRACKING_TARGET_REMOTE"
+      remote_branch="$TRACKING_TARGET_BRANCH"
+    fi
+  elif [[ -n "$upstream" ]]; then
+    if split_upstream_ref "$repo" "$upstream"; then
+      remote="$SPLIT_UPSTREAM_REMOTE"
+      remote_branch="$SPLIT_UPSTREAM_BRANCH"
+    else
+      has_local_upstream=1
+      local_upstream_branch="$upstream"
+    fi
   elif git_remote_exists "$repo" origin; then
     remote="origin"
     remote_branch="$POR_BRANCH_HEAD"
@@ -695,6 +824,23 @@ pull_job() {
 
   # Optimized default path: fetch quietly, then ff-only merge if needed.
   if ((ff_only == 1)) && [[ ${#extra_pull_args[@]} -eq 0 ]]; then
+    if ((has_local_upstream)); then
+      local ab=""
+      local behind=""
+      if ab="$(ahead_behind "$repo" "$compare_ref" 2>/dev/null)"; then
+        behind="${ab#*$'\t'}"
+      fi
+      if [[ "$behind" == "0" ]]; then
+        echo "==> $display_path ($POR_BRANCH_HEAD)"
+        echo "SKIP: up-to-date"
+        return $RC_SKIP_UP_TO_DATE
+      fi
+
+      echo "==> $display_path ($POR_BRANCH_HEAD)"
+      lock_run "$repo" git -C "$repo" merge --ff-only "$compare_ref"
+      return $?
+    fi
+
     local refspec="+refs/heads/$remote_branch:refs/remotes/$remote/$remote_branch"
     if ! lock_run "$repo" git -C "$repo" fetch --prune --quiet --no-tags --recurse-submodules=no "$remote" "$refspec"; then
       echo "==> $display_path ($POR_BRANCH_HEAD)"
@@ -729,7 +875,11 @@ pull_job() {
   if [[ ${#extra_pull_args[@]} -gt 0 ]]; then
     pull_cmd+=("${extra_pull_args[@]}")
   fi
-  pull_cmd+=("$remote" "$remote_branch")
+  if ((has_local_upstream)); then
+    pull_cmd+=("." "$local_upstream_branch")
+  else
+    pull_cmd+=("$remote" "$remote_branch")
+  fi
 
   lock_run "$repo" "${pull_cmd[@]}"
 }
@@ -748,64 +898,135 @@ ahead_behind() {
 discover_repos() {
   local base="$1"
   local base_abs
+  local seen_repos=""
   base_abs="$(abs_dir "$base")" || return 1
 
   BASE_ABS="$base_abs"
+  BASE_IS_WORKTREES_ROOT=0
   REPOS=()
-  CHILD_SCAN_DIRS=()
-  declare -gA _repo_seen=()
-  declare -gA _child_scan_seen=()
+  DIRECT_REPOS=()
+  NESTED_REPOS=()
 
   add_repo() {
     local dir="$1"
     local abs
     abs="$(abs_dir "$dir")" || return 0
-    if [[ -n "${_repo_seen[$abs]+x}" ]]; then
+    if [[ -n "$seen_repos" ]] && grep -Fqx -- "$abs" <<<"$seen_repos"; then
       return 0
     fi
-    _repo_seen["$abs"]=1
+    seen_repos+="$abs"$'\n'
     REPOS+=("$abs")
   }
 
-  add_child_scan_dir() {
+  add_direct_repo() {
     local dir="$1"
     local abs
+    local stored="$dir"
     abs="$(abs_dir "$dir")" || return 0
-    if [[ -n "${_child_scan_seen[$abs]+x}" ]]; then
+    if [[ -n "$seen_repos" ]] && grep -Fqx -- "$abs" <<<"$seen_repos"; then
       return 0
     fi
-    _child_scan_seen["$abs"]=1
-    CHILD_SCAN_DIRS+=("$abs")
+    seen_repos+="$abs"$'\n'
+    DIRECT_REPOS+=("$stored")
   }
 
-  local candidates=()
-  candidates+=("$base_abs")
+  add_nested_repo() {
+    local dir="$1"
+    local abs
+    local stored="$dir"
+    abs="$(abs_dir "$dir")" || return 0
+    if [[ -n "$seen_repos" ]] && grep -Fqx -- "$abs" <<<"$seen_repos"; then
+      return 0
+    fi
+    seen_repos+="$abs"$'\n'
+    NESTED_REPOS+=("$stored")
+  }
 
+  if [[ "$base_abs" == "$(git_worktree_root_abs)" ]]; then
+    BASE_IS_WORKTREES_ROOT=1
+    shopt -s nullglob
+    local project_dir=""
+    local branch_dir=""
+
+    for project_dir in "$base_abs"/*; do
+      [[ -d "$project_dir" ]] || continue
+      if is_git_repo_root "$project_dir"; then
+        add_direct_repo "$project_dir"
+        continue
+      fi
+      for branch_dir in "$project_dir"/*; do
+        [[ -d "$branch_dir" ]] || continue
+        is_git_repo_root "$branch_dir" || continue
+        add_nested_repo "$branch_dir"
+      done
+    done
+
+    # Both arrays are initialized above, so one-section ~/worktrees layouts are safe under set -u.
+    REPOS=("${DIRECT_REPOS[@]}" "${NESTED_REPOS[@]}")
+
+    return 0
+  fi
+
+  local candidates=("$base_abs")
   shopt -s nullglob
-  local d
+  local d=""
   for d in "$base_abs"/*; do
     [[ -d "$d" ]] || continue
     candidates+=("$d")
-    if is_linked_checkout "$d" || is_worktree_container_dir "$d"; then
-      add_child_scan_dir "$d"
-    fi
   done
 
-  local c
+  local c=""
   for c in "${candidates[@]}"; do
     is_git_repo_root "$c" || continue
     add_repo "$c"
   done
+}
 
-  # One extra level for worktree containers and linked checkouts.
-  local wt
-  for wt in "${CHILD_SCAN_DIRS[@]}"; do
-    shopt -s nullglob
-    for d in "$wt"/*; do
-      [[ -d "$d" ]] || continue
-      is_git_repo_root "$d" || continue
-      add_repo "$d"
-    done
+render_table_lines() {
+  local lines_name="$1"
+  local title="${2:-}"
+  local line_count=0
+  local path_w=4
+  local branch_w=6
+  local remote_w=6
+  local sync_w=4
+  local dirty_w=5
+  local i=0
+  local line=""
+  local pth=""
+  local br=""
+  local rem=""
+  local syn=""
+  local dir=""
+  local ignored=""
+
+  eval "line_count=\${#$lines_name[@]}"
+  (( line_count > 0 )) || return 0
+
+  if [[ -n "$title" ]]; then
+    echo "$title"
+  fi
+
+  for ((i = 0; i < line_count; i++)); do
+    eval "line=\${$lines_name[$i]}"
+    IFS="$STATUS_ROW_SEP" read -r pth br rem syn dir ignored <<<"$line"
+    (( ${#pth} > path_w )) && path_w=${#pth}
+    (( ${#br} > branch_w )) && branch_w=${#br}
+    (( ${#rem} > remote_w )) && remote_w=${#rem}
+    (( ${#syn} > sync_w )) && sync_w=${#syn}
+    (( ${#dir} > dirty_w )) && dirty_w=${#dir}
+  done
+
+  printf "%-${path_w}s  %-${branch_w}s  %-${remote_w}s  %-${sync_w}s  %s\n" \
+    "path" "branch" "remote" "sync" "dirty"
+  printf "%-${path_w}s  %-${branch_w}s  %-${remote_w}s  %-${sync_w}s  %s\n" \
+    "----" "------" "------" "----" "-----"
+
+  for ((i = 0; i < line_count; i++)); do
+    eval "line=\${$lines_name[$i]}"
+    IFS="$STATUS_ROW_SEP" read -r pth br rem syn dir ignored <<<"$line"
+    printf "%-${path_w}s  %-${branch_w}s  %-${remote_w}s  %-${sync_w}s  %s\n" \
+      "$pth" "$br" "$rem" "$syn" "$dir"
   done
 }
 
@@ -860,7 +1081,7 @@ print_status() {
   pool_setup "$jobs"
 
   local idx=0
-  local repo
+  local repo=""
   for repo in "${REPOS[@]}"; do
     (
       set +e
@@ -875,24 +1096,16 @@ print_status() {
 
   pool_wait_all
 
-  local -a row_path=()
-  local -a row_branch=()
-  local -a row_remote=()
-  local -a row_sync=()
-  local -a row_dirty=()
-
-  local path_w=4
-  local branch_w=6
-  local remote_w=6
-  local sync_w=4
-  local dirty_w=5
+  ALL_STATUS_LINES=()
+  DIRECT_STATUS_LINES=()
+  NESTED_STATUS_LINES=()
 
   local behind_repos=0
   local dirty_repos=0
   local no_upstream=0
   local fetch_errors=0
+  local line=""
 
-  local line
   for ((idx = 0; idx < ${#REPOS[@]}; idx++)); do
     if [[ ! -f "$tmp/$idx.tsv" ]]; then
       continue
@@ -902,37 +1115,40 @@ print_status() {
     local pth br rem syn dir behind_flag dirty_flag no_upstream_flag fetch_error_flag
     IFS="$STATUS_ROW_SEP" read -r pth br rem syn dir behind_flag dirty_flag no_upstream_flag fetch_error_flag <<<"$line"
 
-    row_path+=("$pth")
-    row_branch+=("$br")
-    row_remote+=("$rem")
-    row_sync+=("$syn")
-    row_dirty+=("$dir")
+    ALL_STATUS_LINES+=("$line")
+    if (( BASE_IS_WORKTREES_ROOT )); then
+      if git_worktree_is_direct_repo_path "${REPOS[$idx]}"; then
+        DIRECT_STATUS_LINES+=("$line")
+      elif git_worktree_is_nested_repo_path "${REPOS[$idx]}"; then
+        NESTED_STATUS_LINES+=("$line")
+      fi
+    fi
 
     [[ "${behind_flag:-0}" == "1" ]] && ((++behind_repos))
     [[ "${dirty_flag:-0}" == "1" ]] && ((++dirty_repos))
     [[ "${no_upstream_flag:-0}" == "1" ]] && ((++no_upstream))
     [[ "${fetch_error_flag:-0}" == "1" ]] && ((++fetch_errors))
-
-    (( ${#pth} > path_w )) && path_w=${#pth}
-    (( ${#br} > branch_w )) && branch_w=${#br}
-    (( ${#rem} > remote_w )) && remote_w=${#rem}
-    (( ${#syn} > sync_w )) && sync_w=${#syn}
-    (( ${#dir} > dirty_w )) && dirty_w=${#dir}
   done
 
-  printf "%-${path_w}s  %-${branch_w}s  %-${remote_w}s  %-${sync_w}s  %s\n" \
-    "path" "branch" "remote" "sync" "dirty"
-  printf "%-${path_w}s  %-${branch_w}s  %-${remote_w}s  %-${sync_w}s  %s\n" \
-    "----" "------" "------" "----" "-----"
+  if (( BASE_IS_WORKTREES_ROOT )); then
+    local direct_count="${#DIRECT_STATUS_LINES[@]}"
+    local nested_count="${#NESTED_STATUS_LINES[@]}"
 
-  local i
-  for ((i = 0; i < ${#row_path[@]}; i++)); do
-    printf "%-${path_w}s  %-${branch_w}s  %-${remote_w}s  %-${sync_w}s  %s\n" \
-      "${row_path[$i]}" "${row_branch[$i]}" "${row_remote[$i]}" "${row_sync[$i]}" "${row_dirty[$i]}"
-  done
+    if (( direct_count > 0 )); then
+      render_table_lines DIRECT_STATUS_LINES "Direct Repos"
+    fi
+    if (( direct_count > 0 && nested_count > 0 )); then
+      echo
+    fi
+    if (( nested_count > 0 )); then
+      render_table_lines NESTED_STATUS_LINES "Nested Worktrees"
+    fi
+  else
+    render_table_lines ALL_STATUS_LINES
+  fi
 
   echo
-  echo "repos:${#row_path[@]} behind:$behind_repos dirty:$dirty_repos no-upstream:$no_upstream fetch-errors:$fetch_errors"
+  echo "repos:${#ALL_STATUS_LINES[@]} behind:$behind_repos dirty:$dirty_repos no-upstream:$no_upstream fetch-errors:$fetch_errors"
 }
 
 run_pull() {
@@ -1020,7 +1236,11 @@ run_pull() {
 
     (
       set +e
-      pull_job "$repo" "$display_path" "$include_dirty" "$ff_only" "$no_fetch" "$ttl" "$force_fetch" "${extra_pull_args[@]}"
+      if [[ ${#extra_pull_args[@]} -gt 0 ]]; then
+        pull_job "$repo" "$display_path" "$include_dirty" "$ff_only" "$no_fetch" "$ttl" "$force_fetch" "${extra_pull_args[@]}"
+      else
+        pull_job "$repo" "$display_path" "$include_dirty" "$ff_only" "$no_fetch" "$ttl" "$force_fetch"
+      fi
       echo "$?" >"$tmp/$idx.rc"
       exit 0
     ) >"$tmp/$idx.out" 2>&1 &

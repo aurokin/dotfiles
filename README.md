@@ -27,8 +27,7 @@
 ### Git Worktrees
 - `gws <path>` shows workspace git status across repos under a parent directory.
 - `gwp <path>` pulls repos discovered by `gws`.
-- `gsw <repo-path> <branch>` converts a plain checkout into a worktree container layout at `<repo-path>/<branch>` using an existing local branch or live remote branch.
-- `gwt <branch>` creates a sibling worktree inside that container, using `^` in paths for branch names that include `/`.
+- `gwt <branch>` creates a centralized worktree at `~/worktrees/<project>/<branch>`, using `^` in paths for branch names that include `/`.
 
 ### References
 - Neovim Config: https://github.com/nvim-lua/kickstart.nvim

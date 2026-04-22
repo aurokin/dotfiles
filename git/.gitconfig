@@ -24,6 +24,6 @@
 [user]
 	name = Hunter Sadler
 [init]
-	defaultBranch = master
+	defaultBranch = main
 [include]
     path = ~/.gitconfiglocal
