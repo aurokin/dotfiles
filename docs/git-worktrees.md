@@ -222,6 +222,29 @@ The intention is:
 - keep shell integration in repo-managed zsh config using `wt config shell init`
 - avoid letting `wt config shell install` modify `~/.zshrc` directly
 
+Recommended trial aliases:
+
+- `wts='wt switch'`
+- `wtc='wt switch --create --base=@'`
+
+Quick translation:
+
+- existing local branch
+  - current: `gwt feature/foo`
+  - `worktrunk`: `wts feature/foo`
+- remote-only branch
+  - current: `gwt release`
+  - `worktrunk`: `wts release`
+- new branch from the current branch
+  - current: `gwt feature/foo`
+  - `worktrunk`: `wtc feature/foo`
+- branch already checked out elsewhere
+  - current: hard-error
+  - `worktrunk`: switches to the existing worktree
+- branch path format
+  - current: `feature^foo`
+  - `worktrunk`: `feature-foo`
+
 ### Trial workflow
 
 Use `worktrunk` on a small number of repos first.
@@ -230,13 +253,13 @@ Equivalent trial commands:
 
 - existing local branch
   - `gwt feature/foo`
-  - `wt switch feature/foo`
+  - `wts feature/foo`
 - remote-only branch
   - `gwt release`
-  - `wt switch release`
+  - `wts release`
 - new branch from current branch
   - `gwt feature/foo`
-  - `wt switch --create --base=@ feature/foo`
+  - `wtc feature/foo`
 
 Things to evaluate explicitly:
 
