@@ -26,6 +26,7 @@ brew install gawk
 brew install gnu-sed
 brew install ffmpeg
 brew install git
+brew install worktrunk
 brew install gh
 brew install glab
 brew install steipete/tap/remindctl
