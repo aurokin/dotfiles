@@ -9,6 +9,7 @@ fi
 brew install mise
 brew install swiftlint
 brew install swiftformat
+brew install swift-format
 brew install xcbeautify
 
 brew install jq
