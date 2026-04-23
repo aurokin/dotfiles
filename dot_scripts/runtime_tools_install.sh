@@ -11,6 +11,11 @@ fi
 mise install -y
 mise upgrade -y
 
+# Ruby-backed gem tools can retain native extensions linked against an older
+# Ruby patch release after `ruby = "latest"` advances, so rebuild them
+# against the currently active Ruby.
+mise install --force -y gem:cocoapods gem:fastlane
+
 # Load the mise environment for this script (so the checks below resolve the mise-managed tools).
 eval "$(mise env -s bash)"
 
@@ -24,14 +29,20 @@ if ! command -v claude >/dev/null 2>&1; then
   curl -fsSL https://claude.ai/install.sh | bash
 fi
 
+# agent-browser needs its own post-install step in addition to the npm CLI package.
+if command -v agent-browser >/dev/null 2>&1; then
+  agent-browser install
+fi
+
 mise reshim
 
 echo "Resolved tools:"
-command -v opencode claude prettierd pod fastlane beautysh http httpie ranger gemini copilot || true
+command -v opencode claude agent-browser prettierd pod fastlane beautysh http httpie ranger gemini copilot || true
 
 echo "Tool versions:"
 opencode --version || true
 claude --version || true
+agent-browser --version || true
 prettierd --version || true
 gemini --version || true
 copilot --version || true
