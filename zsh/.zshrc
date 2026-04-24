@@ -86,6 +86,7 @@ alias agents="$HOME/.zshrc.d/scripts/find-agents-tmux.sh"
 alias pscripts="$HOME/.zshrc.d/scripts/list-package-json-scripts.sh"
 # macOS only
 alias yawn="pmset displaysleepnow"
+alias oyawn="oled-yawn sleep AW3225QF --yes"
 
 # Bat Tokyo Night
 export BAT_THEME="tokyonight_night"
