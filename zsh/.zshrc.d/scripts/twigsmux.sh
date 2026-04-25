@@ -75,12 +75,11 @@ else
     exit 0
 fi
 
-created_pane_id=""
 if ! tmux has-session -t "=$target" 2>/dev/null; then
-    created_pane_id=$(tmux new-session -dP -F '#{pane_id}' -s "$target" -n "$default_window" -c "$new_session_dir")
+    if [[ "$run_wtct_on_create" -eq 1 ]]; then
+        tmux new-session -ds "$target" -n "$default_window" -c "$new_session_dir" 'zsh -lic "wtct --select-window ai; exec zsh -i"'
+    else
+        tmux new-session -ds "$target" -n "$default_window" -c "$new_session_dir"
+    fi
 fi
 tmux switch-client -t "=$target"
-
-if [[ "$run_wtct_on_create" -eq 1 && -n "$created_pane_id" ]]; then
-    tmux send-keys -t "$created_pane_id" "wtct" Enter
-fi
