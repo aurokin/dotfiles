@@ -31,7 +31,7 @@ StartLimitBurst=20
 [Service]
 Type=simple
 Environment=PATH=${HOME}/.local/bin:/usr/local/bin:/usr/bin:/bin
-ExecStart="${shim}" daemon run
+ExecStart=${shim} daemon run
 Restart=on-failure
 RestartSec=30
 
