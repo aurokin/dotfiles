@@ -41,11 +41,11 @@ wtct() {
         return 1
     }
 
-    branch="$session"
-    if [[ ! "$branch" =~ '^[a-z][a-z0-9]*-[a-z][a-z0-9]*-[0-9]+$' ]]; then
+    if [[ ! "$session" =~ '^[a-z][a-z0-9]*-[a-z][a-z0-9]*-[0-9]+$' ]]; then
         echo "$script_name: session '$session' does not match required branch pattern '<project>-<ticket-key>-<number>'" >&2
         return 1
     fi
+    branch="${session#*-}"
 
     wt switch --create --base=@ "$branch" || return
 
