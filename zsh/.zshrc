@@ -126,6 +126,10 @@ if [[ -f "$HOME/.zshrc.d/worktrunk.zsh" ]]; then
     source "$HOME/.zshrc.d/worktrunk.zsh"
 fi
 
+if [[ -f "$HOME/.zshrc.d/scripts/wtct.zsh" ]]; then
+    source "$HOME/.zshrc.d/scripts/wtct.zsh"
+fi
+
 # Mise
 if command -v mise >/dev/null 2>&1; then
     eval "$(mise activate zsh)"
