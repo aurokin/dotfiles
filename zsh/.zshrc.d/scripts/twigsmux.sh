@@ -5,12 +5,33 @@
 #
 # Keybinds for .tmux.conf:
 #   bind-key t display-popup -E -w 50% -h 50% "~/.zshrc.d/scripts/twigsmux.sh"
+#   bind-key y display-popup -E -w 50% -h 50% -d "#{pane_current_path}" "~/.zshrc.d/scripts/twigsmux.sh --prefix-current"
 #   bind-key L switch-client -l
 
 default_window="editor"
 default_session="default"
+initial_query=""
+new_session_dir="$HOME"
+prefix_current=0
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --prefix-current)
+            prefix_current=1
+            new_session_dir="${PWD:-$HOME}"
+            shift
+            ;;
+        *)
+            echo "twigsmux: unknown option: $1" >&2
+            exit 2
+            ;;
+    esac
+done
 
 current_session=$(tmux display-message -p '#S' 2>/dev/null)
+if [[ "$prefix_current" -eq 1 ]]; then
+    initial_query="${current_session}-"
+fi
 
 # Outside tmux: attach or create
 if [[ -z "$TMUX" ]]; then
@@ -23,6 +44,7 @@ fi
 
 result=$(tmux ls -F '#{session_name}' \
     | fzf --print-query \
+        --query="$initial_query" \
         --prompt="switch> " \
         --header="enter=select, ctrl-n=new, ctrl-k=kill" \
         --expect=ctrl-n,ctrl-k)
@@ -49,6 +71,6 @@ else
 fi
 
 if ! tmux has-session -t "=$target" 2>/dev/null; then
-    tmux new-session -ds "$target" -n "$default_window" -c ~
+    tmux new-session -ds "$target" -n "$default_window" -c "$new_session_dir"
 fi
 tmux switch-client -t "=$target"
