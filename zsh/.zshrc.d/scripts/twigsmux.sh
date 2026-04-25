@@ -5,7 +5,7 @@
 #
 # Keybinds for .tmux.conf:
 #   bind-key t display-popup -E -w 50% -h 50% "~/.zshrc.d/scripts/twigsmux.sh"
-#   bind-key y display-popup -E -w 50% -h 50% -d "#{pane_current_path}" "~/.zshrc.d/scripts/twigsmux.sh --prefix-current"
+#   bind-key y display-popup -E -w 50% -h 50% -d "#{pane_current_path}" "~/.zshrc.d/scripts/twigsmux.sh --prefix-current --run-wtct-on-create"
 #   bind-key L switch-client -l
 
 default_window="editor"
@@ -13,12 +13,17 @@ default_session="default"
 initial_query=""
 new_session_dir="$HOME"
 prefix_current=0
+run_wtct_on_create=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --prefix-current)
             prefix_current=1
             new_session_dir="${PWD:-$HOME}"
+            shift
+            ;;
+        --run-wtct-on-create)
+            run_wtct_on_create=1
             shift
             ;;
         *)
@@ -70,7 +75,12 @@ else
     exit 0
 fi
 
+created_pane_id=""
 if ! tmux has-session -t "=$target" 2>/dev/null; then
-    tmux new-session -ds "$target" -n "$default_window" -c "$new_session_dir"
+    created_pane_id=$(tmux new-session -dP -F '#{pane_id}' -s "$target" -n "$default_window" -c "$new_session_dir")
 fi
 tmux switch-client -t "=$target"
+
+if [[ "$run_wtct_on_create" -eq 1 && -n "$created_pane_id" ]]; then
+    tmux send-keys -t "$created_pane_id" "wtct" Enter
+fi
