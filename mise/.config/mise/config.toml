@@ -13,6 +13,7 @@ uv = "latest"
 ruby = "latest"
 pipx = "latest"
 "github:aurokin/clip-remote-sync" = { version = "latest", asset_pattern = "crs", bin = "crs" }
+"ubi:aurokin/agentscan" = "latest"
 
 # Node CLIs
 "npm:opencode-ai" = "latest"
