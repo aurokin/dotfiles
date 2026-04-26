@@ -78,6 +78,7 @@ alias gwp="$HOME/.zshrc.d/scripts/git-workspace.sh pull"
 alias gwt="$HOME/.zshrc.d/scripts/git-new-worktree.sh"
 alias wts="wt switch"
 alias wtc="wt switch --create --base=@"
+alias wtr="wt remove"
 alias gcb="git checkout \$(git branch | fzf)"
 alias lg="lazygit"
 alias rr="rm -rf"
@@ -128,6 +129,10 @@ fi
 
 if [[ -f "$HOME/.zshrc.d/scripts/wtct.zsh" ]]; then
     source "$HOME/.zshrc.d/scripts/wtct.zsh"
+fi
+
+if [[ -f "$HOME/.zshrc.d/scripts/wtrt.zsh" ]]; then
+    source "$HOME/.zshrc.d/scripts/wtrt.zsh"
 fi
 
 # Mise

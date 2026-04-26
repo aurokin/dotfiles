@@ -226,6 +226,8 @@ Recommended trial aliases:
 
 - `wts='wt switch'`
 - `wtc='wt switch --create --base=@'`
+- `wtr='wt remove'`
+- `wtrt <worktree>` removes the worktree, then kills exactly one matching non-current tmux session when found
 
 Quick translation:
 
@@ -238,6 +240,10 @@ Quick translation:
 - new branch from the current branch
   - current: `gwt feature/foo`
   - `worktrunk`: `wtc feature/foo`
+- remove a worktree
+  - `worktrunk`: `wtr feature/foo`
+- remove a worktree and matching tmux session
+  - `worktrunk`: `wtrt feature/foo`
 - branch already checked out elsewhere
   - current: hard-error
   - `worktrunk`: switches to the existing worktree
