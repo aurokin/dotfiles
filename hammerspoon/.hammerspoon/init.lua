@@ -1,3 +1,5 @@
+require("hs.ipc")
+
 local FOCUS_DELAY_SEC = 0.01
 local FOCUS_POLL_INTERVAL_SEC = 0.02
 local FOCUS_POLL_MAX_SEC = 1.0
@@ -175,7 +177,44 @@ local function readSpacesPlistJson()
   return hs.json.decode(out)
 end
 
+local function liveManagedDisplayOrder()
+  local managedDisplays = hs.spaces.data_managedDisplaySpaces()
+  if type(managedDisplays) ~= "table" then
+    return nil
+  end
+
+  local ordered = {}
+  for _, display in ipairs(managedDisplays) do
+    local displayUuid = display["Display Identifier"]
+    if displayUuid == "Main" then
+      local mainScreen = hs.screen.mainScreen()
+      displayUuid = mainScreen and mainScreen:getUUID() or displayUuid
+    end
+
+    for _, space in ipairs(display["Spaces"] or {}) do
+      local spaceId = space["ManagedSpaceID"]
+      if spaceId and hs.spaces.spaceType(spaceId) == "user" then
+        ordered[#ordered + 1] = {
+          space = spaceId,
+          display = displayUuid,
+        }
+      end
+    end
+  end
+
+  if #ordered == 0 then
+    return nil
+  end
+
+  return ordered
+end
+
 local function nativeDesktopOrder()
+  local live = liveManagedDisplayOrder()
+  if live then
+    return live
+  end
+
   local decoded = readSpacesPlistJson()
   if not decoded then
     return nil
@@ -347,9 +386,10 @@ local function focusSpaceAndDisplay(spaceId, displayUuid)
   local focusedScreen = focusedWin and focusedWin:screen() or nil
   local focusedDisplay = focusedScreen and focusedScreen:getUUID() or nil
 
-  -- Prioritize selecting the display first; this is noticeably faster than
-  -- focusing by window ID when the target space is already active elsewhere.
   if displayUuid and focusedDisplay ~= displayUuid then
+    if focusVisibleStandardWindowOnDisplay(displayUuid) then
+      return "display-window"
+    end
     if clickDisplay(displayUuid) then
       return "display-click"
     end
@@ -399,6 +439,111 @@ local function maximizeWindowById(winId, winPid, winTitle)
     win:focus()
     win:maximize()
   end
+end
+
+local function windowSpacesContain(winId, spaceId)
+  local spaces = hs.spaces.windowSpaces(winId)
+  if type(spaces) ~= "table" then
+    return false
+  end
+
+  for _, current in ipairs(spaces) do
+    if current == spaceId then
+      return true
+    end
+  end
+
+  return false
+end
+
+local function focusSpaceIndex(index, spaceId, displayUuid)
+  if not spaceId then
+    return
+  end
+
+  local active = hs.spaces.activeSpaces() or {}
+  if displayUuid and active[displayUuid] == spaceId then
+    focusSpaceAndDisplay(spaceId, displayUuid)
+    return
+  end
+
+  if displayUuid then
+    focusSpaceAndDisplay(spaceId, displayUuid)
+  end
+
+  hs.timer.doAfter(MOVE_SWITCH_DELAY_SEC, function()
+    switchToSpaceIndex(index)
+    hs.timer.doAfter(MOVE_DROP_DELAY_SEC, function()
+      focusSpaceAndDisplay(spaceId, displayUuid)
+    end)
+  end)
+end
+
+local function moveWindowToSpaceDirect(win, targetIndex)
+  if not win or win:isFullScreen() then
+    return false
+  end
+
+  local winId = win:id()
+  if not winId then
+    return false
+  end
+
+  local targetSpace, targetDisplay = spaceForIndex(targetIndex)
+  if not targetSpace or not targetDisplay then
+    writeActionLog(string.format("move direct index=%d result=false reason=no-target", targetIndex))
+    return false
+  end
+
+  local app = win:application()
+  local winPid = app and app:pid() or nil
+  local winTitle = win:title()
+  local currentScreen = win:screen()
+  local currentDisplay = currentScreen and currentScreen:getUUID() or nil
+  local targetScreen = hs.screen.find(targetDisplay)
+
+  writeActionLog(string.format(
+    "move direct begin index=%d win=%s currentDisplay=%s targetSpace=%s targetDisplay=%s spaces=%s",
+    targetIndex,
+    tostring(winId),
+    tostring(currentDisplay),
+    tostring(targetSpace),
+    tostring(targetDisplay),
+    hs.inspect(hs.spaces.windowSpaces(winId))
+  ))
+
+  if targetScreen and currentDisplay and targetDisplay ~= currentDisplay then
+    win:moveToScreen(targetScreen)
+  end
+
+  local ok, moved, err = pcall(hs.spaces.moveWindowToSpace, winId, targetSpace, true)
+  if not ok or not moved then
+    writeActionLog(string.format(
+      "move direct done index=%d result=false error=%s",
+      targetIndex,
+      tostring(ok and err or moved)
+    ))
+    return false
+  end
+
+  local containsTarget = windowSpacesContain(winId, targetSpace)
+  writeActionLog(string.format(
+    "move direct done index=%d result=true containsTarget=%s spaces=%s",
+    targetIndex,
+    tostring(containsTarget),
+    hs.inspect(hs.spaces.windowSpaces(winId))
+  ))
+
+  if not containsTarget then
+    return false
+  end
+
+  focusSpaceIndex(targetIndex, targetSpace, targetDisplay)
+  hs.timer.doAfter(MOVE_DROP_DELAY_SEC + MOVE_MAXIMIZE_DELAY_SEC, function()
+    maximizeWindowById(winId, winPid, winTitle)
+  end)
+
+  return true
 end
 
 local function dragPointForWindow(win)
@@ -716,6 +861,11 @@ spaceFocusOptionTap = hs.eventtap.new({
       stopPendingFocusTimers()
 
       local win = hs.window.frontmostWindow()
+      if moveWindowToSpaceDirect(win, index) then
+        writeActionLog(string.format("move direct index=%d result=true", index))
+        return true
+      end
+
       if moveWindowToSpaceCrossDisplay(win, index) then
         writeActionLog(string.format("move cross-display index=%d result=true", index))
         return true
@@ -747,13 +897,13 @@ spaceFocusOptionTap = hs.eventtap.new({
       lastNumberChord.action = "focus"
     end
 
-    stopPendingFocusTimers()
-    writeActionLog(string.format("focus keyDown index=%d flags=%s", index, flagsToString(flags)))
-
     if isFocusSuppressed() then
       writeActionLog(string.format("focus keyDown index=%d suppressed=true", index))
       return false
     end
+
+    stopPendingFocusTimers()
+    writeActionLog(string.format("focus keyDown index=%d flags=%s", index, flagsToString(flags)))
 
     local baselineFocusedSpace = hs.spaces.focusedSpace()
     local baselineActiveSpaces = hs.spaces.activeSpaces() or {}
@@ -761,7 +911,7 @@ spaceFocusOptionTap = hs.eventtap.new({
     local baselineDisplay = baselineFocusedSpace and hs.spaces.spaceDisplay(baselineFocusedSpace) or nil
     local requestId = focusRequestSeq
 
-    if mappedSpace and mappedDisplay and mappedDisplay ~= baselineDisplay and baselineActiveSpaces[mappedDisplay] == mappedSpace then
+    if mappedSpace and mappedDisplay and baselineActiveSpaces[mappedDisplay] == mappedSpace then
       local mode = focusSpaceAndDisplay(mappedSpace, mappedDisplay)
       writeActionLog(string.format(
         "focus instant-mapped index=%d mode=%s mappedDisplay=%s mappedSpace=%s baselineDisplay=%s",
@@ -771,7 +921,19 @@ spaceFocusOptionTap = hs.eventtap.new({
         tostring(mappedSpace),
         tostring(baselineDisplay)
       ))
-      return false
+      return true
+    end
+
+    if mappedDisplay and mappedDisplay ~= baselineDisplay then
+      local mode = focusSpaceAndDisplay(mappedSpace, mappedDisplay)
+      writeActionLog(string.format(
+        "focus preselect-display index=%d mode=%s mappedDisplay=%s mappedSpace=%s baselineDisplay=%s",
+        index,
+        mode,
+        tostring(mappedDisplay),
+        tostring(mappedSpace),
+        tostring(baselineDisplay)
+      ))
     end
 
     pendingFocusTimer = hs.timer.doAfter(FOCUS_DELAY_SEC, function()
@@ -783,14 +945,17 @@ spaceFocusOptionTap = hs.eventtap.new({
         return
       end
       pendingFocusTimer = nil
-      followNativeSpaceSwitch(requestId, index, flagsToString(flags), baselineFocusedSpace, baselineActiveSpaces)
+      local switchBaselineFocusedSpace = hs.spaces.focusedSpace()
+      local switchBaselineActiveSpaces = hs.spaces.activeSpaces() or {}
+      switchToSpaceIndex(index)
+      followNativeSpaceSwitch(requestId, index, flagsToString(flags), switchBaselineFocusedSpace, switchBaselineActiveSpaces)
     end)
 
-    -- IMPORTANT: Keep native macOS Option+number switching. Using
-    -- hs.spaces.gotoSpace() here can trigger Mission Control-style transitions
-    -- and unstable focus behavior (especially during rapid back-to-back switches).
-    -- We only observe the native switch and then select/focus the target display.
-    return false
+    -- Keep native macOS Option+number switching, but synthesize it only after we
+    -- have selected the display that owns the target space. Passing the original
+    -- event through lets macOS apply it to whichever display was focused before
+    -- this handler ran.
+    return true
   end
 
   if event:getType() == hs.eventtap.event.types.keyUp then

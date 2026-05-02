@@ -4,3 +4,4 @@ workspace/*
 **/workspace/*
 lazygit/.config/lazygit/state.yml
 mise/.config/mise/config.local.toml
+hammerspoon/.hammerspoon/space-actions.log
