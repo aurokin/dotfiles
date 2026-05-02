@@ -11,7 +11,7 @@ This document describes the git worktree workflow for this repo:
 ### Commands
 
 - `gwt <branch>` is the only custom worktree creation command.
-- `gws <path>` shows workspace status.
+- `gwss <path>` shows workspace status.
 - `gwp <path>` pulls repos in a workspace.
 - `gsw` and the old repo-local container flow are removed.
 
@@ -89,7 +89,7 @@ It owns:
 
 ### General scanning
 
-- outside `~/worktrees`, `gws` and `gwp` scan only one level deep
+- outside `~/worktrees`, `gwss` and `gwp` scan only one level deep
 - old `.git-worktree-container` behavior is fully removed
 
 ### Special handling for `~/worktrees`
@@ -100,7 +100,7 @@ When the resolved base path is exactly `$HOME/worktrees`:
 - scan nested repos at `~/worktrees/<project>/<branch>`
 - do not scan deeper than two levels
 
-### `gws ~/worktrees`
+### `gwss ~/worktrees`
 
 Prints two separate tables:
 
@@ -115,7 +115,7 @@ Rules:
 
 ### `gwp ~/worktrees`
 
-- follows the same ordering as `gws ~/worktrees`
+- follows the same ordering as `gwss ~/worktrees`
 - processes direct repos first, then nested worktrees
 - path-sorted within each category
 
@@ -145,7 +145,7 @@ The suite covers:
 ### Current decision
 
 - keep the current custom `gwt` for now
-- keep `gws` and `gwp`
+- keep `gwss` and `gwp`
 - trial `worktrunk` in parallel
 - if the trial goes well, replace most of the custom `gwt` implementation with a thin wrapper over `wt switch`
 
@@ -195,7 +195,7 @@ Useful references:
   - current: `feature/login -> feature^login`
   - `worktrunk`: `feature/login -> feature-login`
 - workspace scanning
-  - current: `gws` / `gwp` scan arbitrary parent directories
+  - current: `gwss` / `gwp` scan arbitrary parent directories
   - `worktrunk`: repo-scoped `wt list`
 
 ### Repo-managed `worktrunk` setup
@@ -272,7 +272,7 @@ Things to evaluate explicitly:
 - whether `feature-login` is acceptable instead of `feature^login`
 - whether "switch to existing worktree" feels better than the current hard-error rule
 - whether shell integration is reliable enough to trust daily
-- whether `wt list` adds enough value even though it does not replace `gws`
+- whether `wt list` adds enough value even though it does not replace `gwss`
 - whether hooks / relocate / prune reduce enough maintenance to justify the shift
 
 ### Long-term migration shape
@@ -281,7 +281,7 @@ Do not replace `gwt` with raw `wt switch` directly.
 
 If the trial is positive, the right shape is:
 
-- keep `gws` / `gwp`
+- keep `gwss` / `gwp`
 - keep current `gwt` during the trial
 - later replace `gwt` with a small wrapper over `wt switch`
 
