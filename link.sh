@@ -27,7 +27,7 @@ fi
 #   stow -R --adopt <package>
 # Then run ./link.sh again.
 stow -R --no-folding zsh
-stow -R tmux git alacritty ghostty wezterm nvim karabiner lazygit idea bat opencode fonts hammerspoon mise worktrunk
+stow -R tmux git alacritty ghostty wezterm nvim karabiner lazygit idea bat fonts hammerspoon mise worktrunk
 
 # Keep this behavior: rebuilding the bat cache is part of linking.
 bat cache --build
