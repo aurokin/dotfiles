@@ -37,12 +37,13 @@ fi
 mise reshim
 
 echo "Resolved tools:"
-command -v opencode claude agent-browser prettierd pod fastlane beautysh http httpie ranger gemini copilot || true
+command -v opencode claude agent-browser portless prettierd pod fastlane beautysh http httpie ranger gemini copilot || true
 
 echo "Tool versions:"
 opencode --version || true
 claude --version || true
 agent-browser --version || true
+portless --version || true
 prettierd --version || true
 gemini --version || true
 copilot --version || true
