@@ -56,6 +56,7 @@ alias c="clear"
 alias icat="kitten icat"
 # Keep zsh/.zshrc.d/scripts/lcc.sh in sync if this command changes.
 alias cc="claude --dangerously-skip-permissions"
+alias ca="cursor-agent --force"
 alias lcc="$HOME/.zshrc.d/scripts/lcc.sh"
 # Keep zsh/.zshrc.d/scripts/lgpt.sh in sync if this command changes.
 alias gpt="codex --dangerously-bypass-approvals-and-sandbox"
