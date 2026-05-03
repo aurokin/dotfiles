@@ -1,6 +1,7 @@
 #!/bin/bash
 
 brew install --cask android-platform-tools
+brew install --cask balenaetcher
 brew install --cask alacritty
 brew install --cask ghostty
 brew install --cask kitty
