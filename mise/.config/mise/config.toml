@@ -12,6 +12,7 @@ rust = "stable"
 uv = "latest"
 ruby = "latest"
 pipx = "latest"
+gcloud = "latest"
 "github:aurokin/clip-remote-sync" = { version = "latest", asset_pattern = "crs", bin = "crs" }
 "github:aurokin/agentscan" = "latest"
 "github:steipete/goplaces" = "latest"
