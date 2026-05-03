@@ -822,6 +822,67 @@ local function followNativeSpaceSwitch(requestId, index, flags, baselineFocusedS
   return true
 end
 
+local function standardAppsOnFocusedSpace()
+  local space = hs.spaces.focusedSpace()
+  if not space then
+    return {}
+  end
+
+  local idsOnSpace = {}
+  for _, id in ipairs(hs.spaces.windowsForSpace(space) or {}) do
+    idsOnSpace[id] = true
+  end
+
+  local seenPid = {}
+  local apps = {}
+
+  for _, win in ipairs(hs.window.orderedWindows()) do
+    local id = win:id()
+    if id and idsOnSpace[id] then
+      local app = win:application()
+      local pid = app and app:pid()
+      if pid and not seenPid[pid] then
+        seenPid[pid] = true
+        apps[#apps + 1] = { app = app, window = win }
+      end
+    end
+  end
+
+  table.sort(apps, function(a, b)
+    return (a.app:name() or "") < (b.app:name() or "")
+  end)
+
+  return apps
+end
+
+local function cycleAppsOnFocusedSpace(direction)
+  direction = direction or 1
+  local apps = standardAppsOnFocusedSpace()
+  if #apps == 0 then
+    return
+  end
+
+  local frontPid = hs.application.frontmostApplication():pid()
+
+  if #apps == 1 then
+    if apps[1].app:pid() ~= frontPid then
+      apps[1].window:focus()
+    end
+    return
+  end
+
+  local currentIdx
+  for i, entry in ipairs(apps) do
+    if entry.app:pid() == frontPid then
+      currentIdx = i
+      break
+    end
+  end
+
+  local nextIdx = currentIdx and ((currentIdx - 1 + direction) % #apps) + 1 or 1
+  apps[nextIdx].window:focus()
+end
+
 local keycodeToIndex = {}
 for i = 1, 9 do
   keycodeToIndex[hs.keycodes.map[tostring(i)]] = i
@@ -996,4 +1057,7 @@ else
       win:maximize()
     end
   end)
+
+  hs.hotkey.bind({ "alt" }, "tab", function() cycleAppsOnFocusedSpace(1) end)
+  hs.hotkey.bind({ "alt", "shift" }, "tab", function() cycleAppsOnFocusedSpace(-1) end)
 end
