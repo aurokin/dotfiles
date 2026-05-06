@@ -5,3 +5,6 @@ workspace/*
 lazygit/.config/lazygit/state.yml
 mise/.config/mise/config.local.toml
 hammerspoon/.hammerspoon/space-actions.log
+
+worktrunk/.config/worktrunk/*
+!worktrunk/.config/worktrunk/config.toml
