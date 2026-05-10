@@ -17,6 +17,7 @@ awscli = "latest"
 "github:aurokin/clip-remote-sync" = { version = "latest", asset_pattern = "crs", bin = "crs" }
 "github:aurokin/agentscan" = "latest"
 "github:steipete/goplaces" = "latest"
+"github:steipete/gogcli" = { version = "latest", bin = "gog" }
 "github:steipete/imsg" = { version = "latest", os = ["macos"] }
 
 # Node CLIs
