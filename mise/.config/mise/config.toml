@@ -13,6 +13,7 @@ uv = "latest"
 ruby = "latest"
 pipx = "latest"
 gcloud = "latest"
+awscli = "latest"
 "github:aurokin/clip-remote-sync" = { version = "latest", asset_pattern = "crs", bin = "crs" }
 "github:aurokin/agentscan" = "latest"
 "github:steipete/goplaces" = "latest"
@@ -31,6 +32,7 @@ gcloud = "latest"
 "npm:@mariozechner/pi-coding-agent" = "latest"
 "npm:agent-browser" = "latest"
 "npm:portless" = "latest"
+"npm:vercel" = "latest"
 
 # Claude Code is managed separately. The current upstream CLI ships native
 # install/update flows (`claude install`, `claude update`) rather than staying
