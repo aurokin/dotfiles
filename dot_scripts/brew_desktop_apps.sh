@@ -18,7 +18,6 @@ brew install --cask font-noto-sans-symbols-2
 brew install --cask font-roboto-mono-nerd-font
 brew install --cask google-chrome
 brew install --cask hammerspoon
-brew install --cask whichspace
 brew install --cask karabiner-elements
 brew install --cask raycast
 brew install --cask discord
