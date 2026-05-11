@@ -19,6 +19,7 @@ awscli = "latest"
 "github:steipete/goplaces" = "latest"
 "github:steipete/gogcli" = { version = "latest", bin = "gog" }
 "github:steipete/imsg" = { version = "latest", os = ["macos"] }
+"go:github.com/xdevplatform/xurl" = "latest"
 
 # Node CLIs
 "npm:opencode-ai" = "latest"
@@ -33,6 +34,7 @@ awscli = "latest"
 "npm:@earendil-works/pi-coding-agent" = "latest"
 "npm:agent-browser" = "latest"
 "npm:portless" = "latest"
+"npm:hunkdiff" = "latest"
 "npm:vercel" = "latest"
 
 # Claude Code is managed separately. The current upstream CLI ships native
