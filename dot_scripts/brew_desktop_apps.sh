@@ -5,7 +5,6 @@ brew install --cask balenaetcher
 brew install --cask alacritty
 brew install --cask ghostty
 brew install --cask kitty
-brew install --cask betterdisplay
 brew install --cask chatgpt-atlas
 brew install --cask claude
 brew install --cask claude-code
