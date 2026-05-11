@@ -4,11 +4,19 @@ set -euo pipefail
 run_resume() {
   # Prefer interactive zsh so .zshrc loads aliases/functions (including `cc`).
   if command -v zsh >/dev/null 2>&1; then
-    exec zsh -ic 'builtin cd -- "$1" && shift && cc --resume "$@"' lcc "$PWD" "$@"
+    if [[ "${LCC_FORK_SESSION:-0}" == "1" ]]; then
+      exec zsh -ic 'builtin cd -- "$1" && shift && cc "$@"' lcc "$PWD" --fork-session --resume "$@"
+    fi
+
+    exec zsh -ic 'builtin cd -- "$1" && shift && cc "$@"' lcc "$PWD" --resume "$@"
   fi
 
   # Fallback for environments without zsh.
   if command -v claude >/dev/null 2>&1; then
+    if [[ "${LCC_FORK_SESSION:-0}" == "1" ]]; then
+      exec claude --dangerously-skip-permissions --fork-session --resume "$@"
+    fi
+
     exec claude --dangerously-skip-permissions --resume "$@"
   fi
 
@@ -108,6 +116,10 @@ Behavior:
   - If history has no cwd-matching session, uses the newest Claude session
     stored for the current working directory.
   - Falls back to `cc --continue` if no session ID can be resolved.
+
+Environment:
+  LCC_FORK_SESSION=1  Add --fork-session when resuming/continuing.
+                      Used by the lccr alias for Claude Code recovery.
 EOF
   exit 0
 fi
@@ -127,10 +139,18 @@ if [[ -n "$session_id" ]]; then
 fi
 
 if command -v zsh >/dev/null 2>&1; then
-  exec zsh -ic 'builtin cd -- "$1" && cc --continue' lcc "$PWD"
+  if [[ "${LCC_FORK_SESSION:-0}" == "1" ]]; then
+    exec zsh -ic 'builtin cd -- "$1" && shift && cc "$@"' lcc "$PWD" --fork-session --continue
+  fi
+
+  exec zsh -ic 'builtin cd -- "$1" && shift && cc "$@"' lcc "$PWD" --continue
 fi
 
 if command -v claude >/dev/null 2>&1; then
+  if [[ "${LCC_FORK_SESSION:-0}" == "1" ]]; then
+    exec claude --dangerously-skip-permissions --fork-session --continue
+  fi
+
   exec claude --dangerously-skip-permissions --continue
 fi
 
