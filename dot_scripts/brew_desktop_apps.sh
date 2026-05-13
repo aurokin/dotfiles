@@ -20,6 +20,7 @@ brew install --cask hammerspoon
 brew install --cask karabiner-elements
 brew install --cask raycast
 brew install --cask discord
+brew install --cask sonobus
 brew install --cask moonlight
 brew install --cask openmtp
 brew install --cask steam
