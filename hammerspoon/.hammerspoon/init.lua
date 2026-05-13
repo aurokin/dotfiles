@@ -19,6 +19,9 @@ local FOCUS_MODIFIERS = { alt = true }
 local MOVE_MODIFIERS = { alt = true, shift = true }
 local MOVE_SWITCH_MODIFIERS = { alt = true }
 local MODIFIER_KEYS = { "alt", "cmd", "ctrl", "shift", "fn" }
+local APP_CYCLE_IGNORED_BUNDLE_IDS = {
+  ["com.electron.wispr-flow"] = true,
+}
 
 local DEBUG_SPACE = false
 local log = hs.logger.new("spaces", DEBUG_SPACE and "debug" or "warning")
@@ -355,6 +358,20 @@ local function focusVisibleStandardWindowOnDisplay(displayUuid)
   end
 
   return false
+end
+
+local function isAppCycleWindow(win)
+  if not win or not win:isStandard() or not win:isVisible() or win:isMinimized() then
+    return false
+  end
+
+  local app = win:application()
+  local bundleId = app and app:bundleID()
+  if bundleId and APP_CYCLE_IGNORED_BUNDLE_IDS[bundleId] then
+    return false
+  end
+
+  return true
 end
 
 local function clickDisplay(displayUuid)
@@ -838,7 +855,7 @@ local function standardAppsOnFocusedSpace()
 
   for _, win in ipairs(hs.window.orderedWindows()) do
     local id = win:id()
-    if id and idsOnSpace[id] then
+    if id and idsOnSpace[id] and isAppCycleWindow(win) then
       local app = win:application()
       local pid = app and app:pid()
       if pid and not seenPid[pid] then
@@ -855,6 +872,40 @@ local function standardAppsOnFocusedSpace()
   return apps
 end
 
+local function frontmostAppCyclePidOnFocusedSpace()
+  local space = hs.spaces.focusedSpace()
+  if not space then
+    return nil
+  end
+
+  local idsOnSpace = {}
+  for _, id in ipairs(hs.spaces.windowsForSpace(space) or {}) do
+    idsOnSpace[id] = true
+  end
+
+  local frontmostApp = hs.application.frontmostApplication()
+  local frontmostPid = frontmostApp and frontmostApp:pid()
+  if frontmostPid then
+    for _, win in ipairs(hs.window.orderedWindows()) do
+      local app = win:application()
+      local id = win:id()
+      if id and app and app:pid() == frontmostPid and idsOnSpace[id] and isAppCycleWindow(win) then
+        return frontmostPid, true
+      end
+    end
+  end
+
+  for _, win in ipairs(hs.window.orderedWindows()) do
+    local id = win:id()
+    if id and idsOnSpace[id] and isAppCycleWindow(win) then
+      local app = win:application()
+      return app and app:pid() or nil, false
+    end
+  end
+
+  return nil, false
+end
+
 local function cycleAppsOnFocusedSpace(direction)
   direction = direction or 1
   local apps = standardAppsOnFocusedSpace()
@@ -862,10 +913,10 @@ local function cycleAppsOnFocusedSpace(direction)
     return
   end
 
-  local frontPid = hs.application.frontmostApplication():pid()
+  local frontPid, frontPidIsDirect = frontmostAppCyclePidOnFocusedSpace()
 
   if #apps == 1 then
-    if apps[1].app:pid() ~= frontPid then
+    if not frontPidIsDirect or apps[1].app:pid() ~= frontPid then
       apps[1].window:focus()
     end
     return
