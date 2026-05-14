@@ -51,6 +51,7 @@ awscli = "latest"
 "pipx:ruff" = "latest"
 "pipx:youtube-transcript-api" = "latest"
 "pipx:antoniorodr/memo" = { version = "latest", os = ["macos"] }
+"pipx:jwmoss/notesctl" = { version = "latest", os = ["macos"] }
 python = "latest"
 
 # Ruby CLIs
