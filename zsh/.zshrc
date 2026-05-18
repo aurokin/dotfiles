@@ -110,7 +110,10 @@ alias fcd="cd \$(find * -type d | fzf)"
 # alias frd="cd / && cd \$(find * -typed | fzf)"
 
 # Load Host Config
+# Short hostname only - macOS reports koopa.local / koopa.home.arpa / koopa
+# depending on the network, so strip any domain to keep host files stable.
 PC_NAME=$(uname -n)
+PC_NAME=${PC_NAME%%.*}
 HOST_FILE="$HOME/.zshrc.d/hosts/$PC_NAME.zsh"
 KEYS_FILE="$HOME/.zshrc.d/keys.zsh"
 
