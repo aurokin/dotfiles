@@ -26,6 +26,9 @@ fi
 brew install gawk
 brew install gnu-sed
 brew install ffmpeg
+brew install yt-dlp
+brew install whisper-cpp
+brew install whisperkit-cli
 brew install git
 brew install worktrunk
 brew install gh
