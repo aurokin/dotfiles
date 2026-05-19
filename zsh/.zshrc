@@ -148,3 +148,7 @@ fi
 
 # Zoxide
 eval "$(zoxide init zsh)"
+
+# Keep user-local command installs ahead of Homebrew and other tool managers.
+# Some installers (e.g. Antigravity CLI) place binaries here.
+export PATH="$HOME/.local/bin:$PATH"
