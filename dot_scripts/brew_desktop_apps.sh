@@ -11,6 +11,7 @@ brew install --cask claude
 brew install --cask claude-code
 brew install --cask codex
 brew install --cask codex-app
+brew install --cask steipete/tap/codexbar
 brew install --cask t3-code
 brew install --cask font-monaspace-nerd-font
 brew install --cask font-monaspice-nerd-font
