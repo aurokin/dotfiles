@@ -25,6 +25,7 @@ brew install --cask discord
 brew install --cask sonobus
 brew install --cask moonlight
 brew install --cask openmtp
+brew install --cask opencode-desktop
 brew install --cask steam
 brew install --cask retroarch
 brew install --cask the-unarchiver
