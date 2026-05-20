@@ -1,0 +1,25 @@
+add_newline = false
+format = "$directory$git_branch$custom$line_break$character"
+
+[directory]
+format = "[$path]($style)"
+style = "bold #7aa2ff"
+truncation_length = 3
+truncate_to_repo = false
+home_symbol = "~"
+read_only = ""
+
+[git_branch]
+format = " [$branch]($style)"
+style = "bold #8a8a8a"
+symbol = ""
+
+[custom.git_dirty]
+command = "if [ -n \"$(git status --porcelain --ignore-submodules=dirty 2>/dev/null)\" ]; then printf '*'; fi"
+when = "git rev-parse --is-inside-work-tree >/dev/null 2>&1"
+format = "[$output]($style)"
+style = "bold #ff79c6"
+
+[character]
+success_symbol = "[❯](bold #b084f5)"
+error_symbol = "[❯](bold #ff5555)"

@@ -1,6 +1,6 @@
 # Auro's ZSH Config
 # Requires Installing
-# - Pure (https://github.com/sindresorhus/pure)
+# - Starship (https://starship.rs)
 
 # Terminal
 export TERM=xterm-256color
@@ -39,14 +39,9 @@ elif command -v brew >/dev/null 2>&1; then
     eval "$(brew shellenv)"
 fi
 
-# Pure
-if [[ -n "$HOMEBREW_PREFIX" ]]; then
-    fpath+=("$HOMEBREW_PREFIX/share/zsh/site-functions")
-fi
-autoload -U promptinit; promptinit
-prompt pure
-if [[ -n ${prompt_pure_state[username]-} ]]; then
-    prompt_pure_state[username]='%F{243}%n%f%F{243}@%m%f'
+# Starship
+if command -v starship >/dev/null 2>&1; then
+    eval "$(starship init zsh)"
 fi
 
 export PATH="$HOME/.bin:$HOME/.local/bin:$PATH"

@@ -38,7 +38,7 @@ brew install steipete/tap/goplaces
 brew install dedene/tap/raindrop-cli
 
 brew install zsh
-brew install pure
+brew install starship
 brew install wget
 brew install rsync
 brew install tmux

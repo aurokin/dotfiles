@@ -2,7 +2,7 @@
 - Font: Roboto Condensed Mono Nerd Font
 - OSX Keybinds: Karabiner Elements
 - OSX Window Manager: Amethyst
-- Shell: Zsh (Pure Prompt)
+- Shell: Zsh (Starship Prompt)
 - Terminal: Alacritty
 - Text Editor: Neovim
 - Theme: Tokyo Night
