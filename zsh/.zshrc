@@ -142,7 +142,13 @@ if command -v mise >/dev/null 2>&1; then
 fi
 
 # Zoxide
-eval "$(zoxide init zsh)"
+if command -v zoxide >/dev/null 2>&1; then
+    eval "$(zoxide init zsh)"
+
+    if command -v zdr >/dev/null 2>&1; then
+        eval "$(zdr init zsh)"
+    fi
+fi
 
 # Keep user-local command installs ahead of Homebrew and other tool managers.
 # Some installers (e.g. Antigravity CLI) place binaries here.
