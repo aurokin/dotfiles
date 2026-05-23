@@ -22,3 +22,10 @@ if [[ -d "$grok_bin" ]]; then
     *) export PATH="$grok_bin:$PATH" ;;
   esac
 fi
+
+# Portless defaults for this always-home Mac. These are non-secret preferences,
+# so they belong in the host-specific zsh file rather than keys/private files.
+# PORTLESS_LAN=1 makes the proxy default to mDNS/LAN mode; PORTLESS_TAILSCALE=1
+# shares each app on the tailnet by default when Tailscale HTTPS is enabled.
+export PORTLESS_LAN=1
+export PORTLESS_TAILSCALE=1
