@@ -1,5 +1,5 @@
 add_newline = true
-format = "$directory$git_branch$custom$line_break$character"
+format = "$directory$git_branch$git_status$line_break$character"
 
 [directory]
 format = "[$path]($style)"
@@ -14,11 +14,20 @@ format = " [$branch]($style)"
 style = "bold #8a8a8a"
 symbol = ""
 
-[custom.git_dirty]
-command = "if [ -n \"$(git status --porcelain --ignore-submodules=dirty 2>/dev/null)\" ]; then printf '*'; fi"
-when = "git rev-parse --is-inside-work-tree >/dev/null 2>&1"
-format = "[$output]($style)"
+[git_status]
+format = "[$all_status]($style)"
 style = "bold #ff79c6"
+modified = "*"
+conflicted = ""
+untracked = ""
+stashed = ""
+staged = ""
+renamed = ""
+deleted = ""
+ahead = ""
+behind = ""
+diverged = ""
+ignore_submodules = true
 
 [character]
 success_symbol = "[❯](bold #b084f5)"
