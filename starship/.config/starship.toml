@@ -1,6 +1,10 @@
 add_newline = true
 format = "$directory$git_branch$git_status$line_break$character"
 
+# Bail fast instead of stalling the prompt in large repos.
+command_timeout = 200
+scan_timeout = 30
+
 [directory]
 format = "[$path]($style)"
 style = "bold #7aa2ff"
