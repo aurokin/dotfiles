@@ -45,16 +45,19 @@ if [[ "$(tmux display-message -p '#{?#{>=:#{version},3.3},1,0}' 2>/dev/null)" !=
   exit 0
 fi
 
-geom=()
+# Accumulate into one array that always starts with -E. Expanding an empty
+# array under `set -u` raises "unbound variable" on bash < 4.4 (macOS system
+# bash is 3.2), so we must never expand a possibly-empty geom/dir array; popup
+# is always non-empty and "$@" is guaranteed non-empty (checked above).
+popup=(-E)
 case "$size" in
-  half)    geom=(-w 50% -h 50%) ;;
-  full)    geom=(-w 100% -h 100%) ;;
-  scan)    geom=(-x R -y 0 -w 65% -h 20) ;;
-  default) geom=() ;;
+  half)    popup+=(-w 50% -h 50%) ;;
+  full)    popup+=(-w 100% -h 100%) ;;
+  scan)    popup+=(-x R -y 0 -w 65% -h 20) ;;
+  default) ;;
   *) echo "tmux-popup.sh: unknown size '$size'" >&2; exit 2 ;;
 esac
 
-dir=()
-[[ -n "$start_dir" ]] && dir=(-d "$start_dir")
+[[ -n "$start_dir" ]] && popup+=(-d "$start_dir")
 
-exec tmux display-popup -E "${geom[@]}" "${dir[@]}" "$@"
+exec tmux display-popup "${popup[@]}" "$@"
