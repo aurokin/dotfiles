@@ -228,6 +228,10 @@ Recommended trial aliases:
 - `wtc='wt switch --create --base=@'`
 - `wtr='wt remove'`
 - `wtrt <worktree>` removes the worktree, then kills exactly one matching non-current tmux session when found
+- `prefix+y` opens the tmux session picker from the current directory; when it creates a new session it runs `wtct`, creates/switches a `worktrunk` worktree for the requested branch, and scaffolds the standard tmux windows.
+  If the new session keeps the prefilled `<current-session>-` prefix, that prefix is stripped from the branch name; otherwise the session name is used as the branch name directly.
+- `prefix+y` records the resolved branch on the new tmux session as `@twigsmux_worktree_branch`.
+- In the `prefix+t` / `prefix+y` picker, `ctrl-r` removes the selected worktree via `wtrt`; sessions created by `prefix+y` use the recorded branch, legacy ticket-style sessions use the old `project-ticket-123` to `ticket-123` fallback, and other sessions without a recorded branch are passed through unchanged. Empty targets and the current session's own worktree are ignored.
 
 Quick translation:
 

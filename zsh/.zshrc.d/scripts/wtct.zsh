@@ -2,9 +2,18 @@ wtct() {
     local script_name="wtct"
     local session branch client_tty pane_id select_window target_window_id
 
+    branch=""
     select_window=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
+            --branch)
+                [[ -n ${2-} ]] || {
+                    echo "$script_name: --branch requires a branch name" >&2
+                    return 2
+                }
+                branch="$2"
+                shift 2
+                ;;
             --select-window)
                 [[ -n ${2-} ]] || {
                     echo "$script_name: --select-window requires a window name" >&2
@@ -41,11 +50,13 @@ wtct() {
         return 1
     }
 
-    if [[ ! "$session" =~ '^[a-z][a-z0-9]*-[a-z][a-z0-9]*-[0-9]+$' ]]; then
-        echo "$script_name: session '$session' does not match required branch pattern '<project>-<ticket-key>-<number>'" >&2
-        return 1
+    if [[ -z "$branch" ]]; then
+        if [[ "$session" =~ '^[a-z][a-z0-9]*-[a-z][a-z0-9]*-[0-9]+$' ]]; then
+            branch="${session#*-}"
+        else
+            branch="$session"
+        fi
     fi
-    branch="${session#*-}"
 
     wt switch --create --base=@ "$branch" || return
 
