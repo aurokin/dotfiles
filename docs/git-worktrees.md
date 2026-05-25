@@ -227,11 +227,13 @@ Recommended trial aliases:
 - `wts='wt switch'`
 - `wtc='wt switch --create --base=@'`
 - `wtr='wt remove'`
-- `wtrt <worktree>` removes the worktree, then kills exactly one matching non-current tmux session when found
+- `wtrt <worktree>` removes the worktree from the current repo context, then kills exactly one matching non-current tmux session when found
+- `wtrt --cwd <repo-path> <worktree>` removes the worktree from an explicit repo context, which lets tmux picker removals work even when launched from another repo's session
+- `wtrt --session <tmux-session> <worktree>` scopes tmux cleanup to that exact session instead of suffix-matching every session
 - `prefix+y` opens the tmux session picker from the current directory; when it creates a new session it runs `wtct`, creates/switches a `worktrunk` worktree for the requested branch, and scaffolds the standard tmux windows.
   If the new session keeps the prefilled `<current-session>-` prefix, that prefix is stripped from the branch name; otherwise the session name is used as the branch name directly.
-- `prefix+y` records the resolved branch on the new tmux session as `@twigsmux_worktree_branch`.
-- In the `prefix+t` / `prefix+y` picker, `ctrl-r` removes the selected worktree via `wtrt`; sessions created by `prefix+y` use the recorded branch, legacy ticket-style sessions use the old `project-ticket-123` to `ticket-123` fallback, and other sessions without a recorded branch are passed through unchanged. Empty targets and the current session's own worktree are ignored.
+- `prefix+y` records the resolved branch on the new tmux session as `@twigsmux_worktree_branch` and the repo context as `@twigsmux_worktree_cwd`.
+- In the `prefix+t` / `prefix+y` picker, `ctrl-r` removes the selected worktree via `wtrt`; sessions created by `prefix+y` use the recorded branch and repo context, sessions already sitting inside `~/worktrees/<project>/<worktree>` use that worktree name and infer the main checkout as repo context, legacy ticket-style sessions use the old `project-ticket-123` to `ticket-123` fallback, and other project-prefixed sessions such as `diffwarden-streaming` strip the owning project prefix. Empty targets and the current session's own worktree are ignored. If a selected session's pane path, session path, or session name point at conflicting worktrees, removal is refused instead of guessing.
 
 Quick translation:
 
