@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ -x "$HOME/.cargo/bin/agentscan" ]]; then
-  exec "$HOME/.cargo/bin/agentscan" "$@"
-fi
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
+source "$script_dir/resolve-bin.sh"
 
-exec "$HOME/.local/share/mise/shims/agentscan" "$@"
+exec "$(resolve_bin agentscan)" "$@"
