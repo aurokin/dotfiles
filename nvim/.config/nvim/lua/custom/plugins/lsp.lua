@@ -12,17 +12,6 @@ return {
         { 'j-hui/fidget.nvim', opts = {} },
         -- Allows extra capabilities provided by blink.cmp
         'saghen/blink.cmp',
-        {
-            'folke/lazydev.nvim',
-            ft = 'lua', -- only load on lua files
-            opts = {
-                library = {
-                    -- See the configuration section for more details
-                    -- Load luvit types when the `vim.uv` word is found
-                    { path = '${3rd}/luv/library', words = { 'vim%.uv' } },
-                },
-            },
-        },
     },
     config = function()
         -- [[ Configure LSP ]]
@@ -119,34 +108,13 @@ return {
             },
             filetypes = { 'typescript', 'javascript', 'javascriptreact', 'typescriptreact', 'vue' },
         })
-        vim.lsp.config('vue_ls', {
-            on_init = function(client)
-                client.handlers['tsserver/request'] = function(_, result, context)
-                    local clients = vim.lsp.get_clients { bufnr = context.bufnr, name = 'vtsls' }
-                    if #clients == 0 then
-                        vim.notify('Could not find `vtsls` lsp client, `vue_ls` would not work without it.', vim.log.levels.ERROR)
-                        return
-                    end
-                    local ts_client = clients[1]
-
-                    local param = unpack(result)
-                    local id, command, payload = unpack(param)
-                    ts_client:exec_cmd({
-                        title = 'vue_request_forward', -- You can give title anything as it's used to represent a command in the UI, `:h Client:exec_cmd`
-                        command = 'typescript.tsserverRequest',
-                        arguments = {
-                            command,
-                            payload,
-                        },
-                    }, { bufnr = context.bufnr }, function(_, r)
-                        local response_data = { { id, r.body } }
-                        ---@diagnostic disable-next-line: param-type-mismatch
-                        client:notify('tsserver/response', response_data)
-                    end)
-                end
-            end,
+        vim.lsp.config('eslint', {
+            settings = {
+                format = false,
+                workingDirectory = { mode = 'auto' },
+            },
         })
-        local servers = {
+        local lsp_servers = {
             'rust_analyzer',
             'html',
             'jsonls',
@@ -155,25 +123,24 @@ return {
             'bashls',
             'vtsls',
             'vue_ls',
-            'stylua',
             'eslint',
-            'eslint_d',
         }
-        local masonOnly = {
-            stylua = true,
-            eslint = true,
-            eslint_d = true,
+        local tools = {
+            'stylua',
+            'swiftformat',
+            'shfmt',
+            'prettierd',
+            'prettier',
         }
+        local ensure_installed = vim.list_extend(vim.deepcopy(lsp_servers), tools)
 
-        -- Ensure the servers above are installed
+        -- Ensure the LSP servers and formatter CLIs above are installed.
         require('mason').setup()
         require('mason-lspconfig').setup { automatic_enable = false }
-        require('mason-tool-installer').setup { ensure_installed = servers }
+        require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
-        for _, serverName in pairs(servers) do
-            if not masonOnly[serverName] then
-                vim.lsp.enable(serverName)
-            end
+        for _, server_name in ipairs(lsp_servers) do
+            vim.lsp.enable(server_name)
         end
     end,
 }
