@@ -53,6 +53,7 @@ brew install fd
 brew install tree
 brew install git-delta
 brew install neovim
+brew install tree-sitter-cli
 
 brew install btop
 brew install duf
