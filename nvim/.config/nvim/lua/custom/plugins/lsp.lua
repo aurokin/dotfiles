@@ -32,6 +32,7 @@ return {
             group = vim.api.nvim_create_augroup('auro-lsp-attach', { clear = true }),
 
             callback = function(event)
+                local bufnr = event.buf
                 -- NOTE: Remember that lua is a real programming language, and as such it is possible
                 -- to define small helper and utility functions so you don't have to repeat yourself
                 -- many times.
@@ -73,10 +74,21 @@ return {
         -- LSP Servers
         local vue_language_server_path = vim.fn.expand '$MASON/packages' .. '/vue-language-server' .. '/node_modules/@vue/language-server'
         vim.lsp.config('rust_analyzer', {
-            cargo = { allFeatures = true },
+            settings = {
+                ['rust-analyzer'] = {
+                    cargo = { allFeatures = true },
+                },
+            },
         })
         vim.lsp.config('html', { filetypes = { 'html', 'twig', 'hbs' } })
-        vim.lsp.config('lua_ls', { Lua = { workspace = { checkThirdParty = false }, telemetry = { enable = false } } })
+        vim.lsp.config('lua_ls', {
+            settings = {
+                Lua = {
+                    workspace = { checkThirdParty = false },
+                    telemetry = { enable = false },
+                },
+            },
+        })
         vim.lsp.config('vtsls', {
             settings = {
                 typescript = {
@@ -148,9 +160,9 @@ return {
             'eslint_d',
         }
         local masonOnly = {
-            'stylua',
-            'eslint',
-            'eslint_d',
+            stylua = true,
+            eslint = true,
+            eslint_d = true,
         }
 
         -- Ensure the servers above are installed
