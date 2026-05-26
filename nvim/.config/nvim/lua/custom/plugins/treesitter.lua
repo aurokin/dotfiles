@@ -100,6 +100,7 @@ end
 return {
     -- Highlight, edit, and navigate code
     'nvim-treesitter/nvim-treesitter',
+    branch = 'main',
     lazy = false,
     build = function()
         local treesitter = require('nvim-treesitter')
@@ -109,7 +110,7 @@ return {
         treesitter.update(parsers, { summary = true }):wait(300000)
     end,
     dependencies = {
-        'nvim-treesitter/nvim-treesitter-textobjects',
+        { 'nvim-treesitter/nvim-treesitter-textobjects', branch = 'main' },
     },
     config = function()
         require('nvim-treesitter').setup { install_dir = install_dir }
