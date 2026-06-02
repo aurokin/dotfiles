@@ -153,3 +153,13 @@ fi
 # Keep user-local command installs ahead of Homebrew and other tool managers.
 # Some installers (e.g. Antigravity CLI) place binaries here.
 export PATH="$HOME/.local/bin:$PATH"
+
+# Grok CLI installs outside mise. Keep it after ~/.local/bin so Cursor Agent's
+# `agent` symlink remains the default `agent` command.
+grok_bin="$HOME/.grok/bin"
+if [[ -d "$grok_bin" ]]; then
+    case ":$PATH:" in
+        *":$grok_bin:"*) ;;
+        *) export PATH="$PATH:$grok_bin" ;;
+    esac
+fi
