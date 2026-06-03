@@ -83,12 +83,12 @@ run_test() {
 
 test_wtrt_keeps_existing_call_shape() {
   wtrt streaming
-  assert_eq "$(cat "$WT_LOG")" "pwd=$PWD args=remove streaming"
+  assert_eq "$(cat "$WT_LOG")" "pwd=$PWD args=remove --force-delete streaming"
 }
 
 test_wtrt_runs_remove_from_cwd() {
   wtrt --cwd "$TEST_ROOT/repo" streaming
-  assert_eq "$(cat "$WT_LOG")" "pwd=$TEST_ROOT/repo args=remove streaming"
+  assert_eq "$(cat "$WT_LOG")" "pwd=$TEST_ROOT/repo args=remove --force-delete streaming"
 }
 
 test_wtrt_rejects_missing_cwd_argument() {
@@ -99,12 +99,12 @@ test_wtrt_rejects_missing_cwd_argument() {
 
 test_wtrt_accepts_option_terminator() {
   wtrt -- streaming
-  assert_eq "$(cat "$WT_LOG")" "pwd=$PWD args=remove streaming"
+  assert_eq "$(cat "$WT_LOG")" "pwd=$PWD args=remove --force-delete streaming"
 }
 
 test_wtrt_accepts_option_terminator_after_cwd() {
   wtrt --cwd "$TEST_ROOT/repo" -- streaming
-  assert_eq "$(cat "$WT_LOG")" "pwd=$TEST_ROOT/repo args=remove streaming"
+  assert_eq "$(cat "$WT_LOG")" "pwd=$TEST_ROOT/repo args=remove --force-delete streaming"
 }
 
 test_wtrt_kills_explicit_session_only() {

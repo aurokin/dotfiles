@@ -60,10 +60,10 @@ wtrt() {
                 echo "$script_name: cwd does not exist: $cwd" >&2
                 exit 1
             }
-            wt remove "$target"
+            wt remove --force-delete "$target"
         ) || return
     else
-        wt remove "$target" || return
+        wt remove --force-delete "$target" || return
     fi
 
     command -v tmux >/dev/null 2>&1 || return 0
