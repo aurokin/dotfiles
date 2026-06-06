@@ -44,6 +44,10 @@ if command -v starship >/dev/null 2>&1; then
     eval "$(starship init zsh)"
 fi
 
+# Prepend user-local install dirs (some installers, e.g. Antigravity CLI, drop
+# binaries in ~/.local/bin). This runs before `mise activate`, so it is captured in
+# mise's __MISE_ORIG_PATH. Note: it does NOT beat mise-managed tools — mise's hook
+# re-prepends its own tool dirs ahead of these on every cd.
 export PATH="$HOME/.bin:$HOME/.local/bin:$PATH"
 
 # Set Aliases
@@ -149,10 +153,6 @@ if command -v zoxide >/dev/null 2>&1; then
         eval "$(zdr init zsh)"
     fi
 fi
-
-# Keep user-local command installs ahead of Homebrew and other tool managers.
-# Some installers (e.g. Antigravity CLI) place binaries here.
-export PATH="$HOME/.local/bin:$PATH"
 
 # Grok CLI installs outside mise. Keep it after ~/.local/bin so Cursor Agent's
 # `agent` symlink remains the default `agent` command.
