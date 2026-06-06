@@ -33,6 +33,7 @@ brew install git
 brew install worktrunk
 brew install gh
 brew install glab
+brew install actionlint
 brew install steipete/tap/remindctl
 brew install steipete/tap/goplaces
 brew install dedene/tap/raindrop-cli
