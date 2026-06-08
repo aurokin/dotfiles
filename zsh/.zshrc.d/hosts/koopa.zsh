@@ -23,9 +23,8 @@ if [[ -d "$grok_bin" ]]; then
   esac
 fi
 
-# Portless defaults for this always-home Mac. These are non-secret preferences,
-# so they belong in the host-specific zsh file rather than keys/private files.
-# PORTLESS_LAN=1 makes the proxy default to mDNS/LAN mode; PORTLESS_TAILSCALE=1
-# shares each app on the tailnet by default when Tailscale HTTPS is enabled.
+# Portless defaults for this always-home Mac. This is a non-secret preference,
+# so it belongs in the host-specific zsh file rather than keys/private files.
+# PORTLESS_LAN=1 makes manual proxy starts default to mDNS/LAN mode; the
+# launchd service is installed in LAN mode by dot_scripts/portless_service_install.sh.
 export PORTLESS_LAN=1
-export PORTLESS_TAILSCALE=1
