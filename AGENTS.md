@@ -16,6 +16,7 @@ This file defines repository-specific instructions for automation and agents.
 - Keep shell scripts called from zsh aliases in `zsh/.zshrc.d/scripts`.
 - Zsh config lives in `zsh/.zshrc`; aliases should reference scripts under `~/.zshrc.d/scripts` (not `~/.scripts`).
 - Per-machine zsh config: `zsh/.zshrc.d/hosts/<short-hostname>.zsh`, auto-sourced by `.zshrc` against the domain-stripped `uname -n` (e.g. `koopa`). Use for host-specific PATH/env (tools installed outside mise); follow the guarded-`PATH` idiom in existing host files.
+- Env that must also reach non-interactive shells (`ssh <host> <cmd>` reads only `.zshenv`): `zsh/.zshrc.d/hosts/<short-hostname>.env.zsh`, auto-sourced by `zsh/.zshenv`; keep it env/PATH-only and fast.
 - If a script is meant to be run, ensure it is executable and referenced explicitly from aliases or functions.
 - Neovim config: keep `nvim/.config/nvim/init.lua` as an entrypoint; put non-plugin config in `nvim/.config/nvim/lua/custom/` (e.g. `options.lua`, `keymaps.lua`, `autocmds.lua`) and keep plugin specs in `nvim/.config/nvim/lua/custom/plugins/`.
 
