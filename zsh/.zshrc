@@ -3,7 +3,13 @@
 # - Starship (https://starship.rs)
 
 # Terminal
-export TERM=xterm-256color
+# Let terminal emulators and tmux set TERM themselves. tmux panes need a
+# tmux/screen TERM so TUIs use the right terminfo.
+if [[ -n "${TMUX:-}" && "$TERM" != tmux-* && "$TERM" != screen-* ]]; then
+    export TERM=tmux-256color
+elif [[ -z "${TMUX:-}" && ( -z "${TERM:-}" || "$TERM" == "dumb" ) ]]; then
+    export TERM=xterm-256color
+fi
 
 # NVim
 export EDITOR=nvim
