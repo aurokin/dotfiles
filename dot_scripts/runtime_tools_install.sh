@@ -110,8 +110,8 @@ mise reshim
 short_hostname="$(uname -n)"
 short_hostname="${short_hostname%%.*}"
 
-if [[ "$short_hostname" == "koopa" ]]; then
-  # This helper lives beside this script; the koopa service refresh is best-effort.
+if [[ "$short_hostname" == "koopa" || "$short_hostname" == "luma" ]]; then
+  # This helper lives beside this script; the LAN service refresh is best-effort.
   if ! "$script_dir/portless_service_install.sh"; then
     echo "Warning: Portless launchd service refresh failed; continuing runtime tool install." >&2
   fi
