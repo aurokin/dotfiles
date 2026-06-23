@@ -10,12 +10,18 @@ path_prepend_once() {
   esac
 }
 
-# Linuxbrew owns the interactive shell baseline tools on Haste (mise, stow,
-# tmux, neovim, starship, zoxide, etc.). Non-interactive `ssh haste <cmd>` only
-# reads ~/.zshenv, so keep Homebrew reachable here too.
+# Linuxbrew owns the shell baseline tools on Haste (mise, stow, tmux, neovim,
+# starship, zoxide, etc.). Non-interactive `ssh haste <cmd>` only reads
+# ~/.zshenv, so keep Homebrew reachable here too.
 path_prepend_once "/home/linuxbrew/.linuxbrew/sbin"
 path_prepend_once "/home/linuxbrew/.linuxbrew/bin"
 path_prepend_once "$HOME/.local/bin"
 path_prepend_once "$HOME/.bin"
+
+# Make mise-managed CLIs available to non-interactive ssh commands too.
+# Interactive shells use the full `mise activate zsh` hook from ~/.zshrc.
+if [[ ! -o interactive ]] && command -v mise >/dev/null 2>&1; then
+  eval "$(mise hook-env -s zsh)"
+fi
 
 unset -f path_prepend_once
