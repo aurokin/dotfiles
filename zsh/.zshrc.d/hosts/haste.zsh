@@ -14,7 +14,15 @@ path_prepend_once() {
 # Some local vendor installers, including Antigravity CLI, drop binaries here.
 # Global ~/.zshrc already includes ~/.local/bin, but keep this host file as the
 # place to absorb installer-added Haste-only snippets without dirtying zshrc.
+# Antigravity's CLI binary is ~/.local/bin/agy.
 path_prepend_once "$HOME/.local/bin"
+
+# Convenience aliases for the Antigravity CLI binary name. Diffwarden uses `agy`
+# directly; these are for interactive shells where "antigravity" is easier to remember.
+if [[ -x "$HOME/.local/bin/agy" ]]; then
+  alias antigravity="$HOME/.local/bin/agy"
+  alias anti-gravity="$HOME/.local/bin/agy"
+fi
 
 # Grok CLI installed outside mise (~/.grok/bin holds grok/agent symlinks and
 # completions). This replaces the unguarded block the Grok installer appends to
