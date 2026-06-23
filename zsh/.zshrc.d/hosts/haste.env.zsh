@@ -13,6 +13,9 @@ path_prepend_once() {
 # Linuxbrew owns the shell baseline tools on Haste (mise, stow, tmux, neovim,
 # starship, zoxide, etc.). Non-interactive `ssh haste <cmd>` only reads
 # ~/.zshenv, so keep Homebrew reachable here too.
+export HOMEBREW_PREFIX="/home/linuxbrew/.linuxbrew"
+export HOMEBREW_CELLAR="$HOMEBREW_PREFIX/Cellar"
+export HOMEBREW_REPOSITORY="$HOMEBREW_PREFIX/Homebrew"
 path_prepend_once "/home/linuxbrew/.linuxbrew/sbin"
 path_prepend_once "/home/linuxbrew/.linuxbrew/bin"
 path_prepend_once "$HOME/.local/bin"
