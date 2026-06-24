@@ -99,6 +99,8 @@ alias rr="rm -rf"
 alias twm="~/.zshrc.d/scripts/twigsmux.sh"
 alias agents="$HOME/.zshrc.d/scripts/find-agents-tmux.sh"
 alias pscripts="$HOME/.zshrc.d/scripts/list-package-json-scripts.sh"
+alias comfyui="$HOME/.zshrc.d/scripts/comfyui.sh"
+alias comfyui-install="$HOME/.zshrc.d/scripts/comfyui-install.sh"
 # macOS only
 alias yawn="pmset displaysleepnow"
 alias oyawn="oled-yawn sleep AW3225QF --yes"
