@@ -1,9 +1,24 @@
 add_newline = true
-format = "$directory$git_branch$git_status$line_break$character"
+format = "${custom.ssh_userhost}$directory$git_branch$git_status$line_break$character"
 
 # Bail fast instead of stalling the prompt in large repos.
 command_timeout = 200
 scan_timeout = 30
+
+# Show "user@host " only over SSH (incl. tmux on a remote box) so local prompts
+# stay clean. A single SSH-gated custom module renders it as one unit, so it
+# never leaks for local root/su shells -- the built-in username module has no
+# ssh_only and would otherwise show those concatenated against the path. 'when'
+# runs a cheap test each prompt; the command runs only on SSH. SSH is detected
+# via $SSH_CONNECTION/$SSH_TTY, which tmux propagates to its panes.
+[custom.ssh_userhost]
+when = '[ -n "$SSH_CONNECTION" ] || [ -n "$SSH_TTY" ]'
+command = 'printf "%s@%s" "$USER" "$(hostname -s)"'
+# One element is intentional: starship auto-appends `-c`. Writing ["/bin/sh","-c"]
+# yields `sh -c -c ...` and the command silently stops running (verified on 1.25.1).
+shell = ["/bin/sh"]
+format = "[$output]($style) "
+style = "#6c6c6c"
 
 [directory]
 format = "[$path]($style)"
