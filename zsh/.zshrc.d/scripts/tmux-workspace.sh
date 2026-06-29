@@ -15,11 +15,12 @@ usage() {
   cat <<EOF
 Usage:
   $script_name reorder [client_tty] [pane_id]
-  $script_name scaffold [client_tty] [pane_id]
+  $script_name scaffold [client_tty] [pane_id] [start_dir]
 
 Notes:
   - Designed to be called from tmux keybinds via run-shell, passing:
       '#{client_tty}' '#{pane_id}'
+  - start_dir is optional; when omitted it is resolved from the pane path.
 EOF
 }
 
@@ -91,8 +92,34 @@ set_session_working_dir() {
 
   # tmux 3.x no longer has a `default-path` option. Use attach-session -c to
   # set the session working directory, which controls where plain `new-window`
-  # commands (for example prefix + c) start.
+  # commands start. This needs an attached client, so detached startup panes may
+  # not update session_path; explicit -c on created windows remains required.
   tmux attach-session -t "$session" -c "$start_dir" 2>/dev/null || true
+}
+
+resolve_start_dir() {
+  local pane_id="$1"
+  local requested="${2:-}"
+  local start_dir=""
+
+  if [[ -n "$requested" ]]; then
+    [[ -d "$requested" ]] || die "start dir does not exist: $requested"
+    (
+      cd "$requested" 2>/dev/null || exit 1
+      pwd -P
+    ) || die "couldn't resolve start dir: $requested"
+    return 0
+  fi
+
+  start_dir="$(tmux display-message -p -t "$pane_id" '#{pane_current_path}' 2>/dev/null || true)"
+  if [[ -n "$start_dir" && -d "$start_dir" ]]; then
+    (
+      cd "$start_dir" 2>/dev/null || exit 1
+      pwd -P
+    ) && return 0
+  fi
+
+  printf '%s\n' "$HOME"
 }
 
 list_windows() {
@@ -244,8 +271,7 @@ main() {
       ;;
     scaffold)
       local start_dir
-      start_dir="$(tmux display-message -p -t "$pane_id" '#{pane_current_path}' 2>/dev/null || true)"
-      start_dir="${start_dir:-$HOME}"
+      start_dir="$(resolve_start_dir "$pane_id" "${3:-}")"
       scaffold_workspace "$client_tty" "$pane_id" "$session" "$start_dir"
       ;;
   esac

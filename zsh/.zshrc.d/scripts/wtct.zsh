@@ -1,6 +1,6 @@
 wtct() {
     local script_name="wtct"
-    local session branch client_tty pane_id select_window target_window_id
+    local session branch client_tty pane_id select_window start_dir target_window_id
 
     branch=""
     select_window=""
@@ -59,13 +59,14 @@ wtct() {
     fi
 
     wt switch --create --base=@ "$branch" || return
+    start_dir="${PWD:-}"
 
     pane_id="$(tmux display-message -p '#{pane_id}' 2>/dev/null || true)"
     [[ -n "$pane_id" ]] || pane_id="${TMUX_PANE-}"
 
     client_tty="$(tmux display-message -p '#{client_tty}' 2>/dev/null || true)"
 
-    "$HOME/.zshrc.d/scripts/tmux-workspace.sh" scaffold "$client_tty" "$pane_id"
+    "$HOME/.zshrc.d/scripts/tmux-workspace.sh" scaffold "$client_tty" "$pane_id" "$start_dir"
 
     if [[ -n "$select_window" ]]; then
         target_window_id="$(tmux list-windows -t "=$session" -F '#{window_id}|#{window_name}' 2>/dev/null | awk -F'|' -v name="$select_window" '$2 == name { print $1; exit }')"
