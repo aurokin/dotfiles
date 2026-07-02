@@ -20,7 +20,11 @@ unset apple_python_user_bin
 export N64_WORKSPACE="$HOME/code"
 export PARALLEL_N64_REPO="$N64_WORKSPACE/parallel-n64"
 export RETROARCH_REPO="$N64_WORKSPACE/RetroArch"
-export RETROARCH_BIN="/Applications/RetroArch.app/Contents/MacOS/RetroArch"
+# 2026-07-02: point at the MoltenVK 1.4.1 app copy. The /Applications app
+# bundles MoltenVK 1.2.8, which renders black with the parallel core in
+# hi-res (the 2026-07-02 black-capture incident); the MVK141 app copy is
+# refreshed by parallel-n64 tools/adapters/build_retroarch_agent_control_macos.sh.
+export RETROARCH_BIN="$PARALLEL_N64_REPO/artifacts/external/RetroArch-MVK141.app/Contents/MacOS/RetroArch"
 export RETROARCH_BASE_CONFIG="$RETROARCH_REPO/retroarch.cfg"
 export BASE_CONFIG="$RETROARCH_BASE_CONFIG"
 export PARALLEL_N64_CORE="$PARALLEL_N64_REPO/parallel_n64_libretro.dylib"
