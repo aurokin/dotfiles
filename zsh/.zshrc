@@ -31,6 +31,11 @@ export LS_COLORS=true
 # Remove Later
 unset CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC
 
+# OpenCode
+# Don't load Claude-scoped skills from ~/.claude/skills into OpenCode; skm
+# places agent-scoped skills there (e.g. drive-codex) for Claude Code only.
+export OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1
+
 # XDG
 export XDG_CONFIG_HOME="$HOME/.config"
 
