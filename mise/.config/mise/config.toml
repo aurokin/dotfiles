@@ -23,7 +23,6 @@ awscli = "latest"
 "go:github.com/xdevplatform/xurl" = "latest"
 
 # Node CLIs
-"npm:mintlify" = "latest"
 "npm:opencode-ai" = "latest"
 "npm:@fsouza/prettierd" = "latest"
 "npm:@vue/typescript-plugin" = "latest"
