@@ -22,6 +22,12 @@
       {"action": "tap", "keycodes": ["SCRL"]},
       {"action": "tap", "keycodes": ["3"]},
       {"action": "tap", "keycodes": ["ENT"]}
+    ],
+    [
+      {"action": "tap", "keycodes": ["SCRL"]},
+      {"action": "tap", "keycodes": ["SCRL"]},
+      {"action": "tap", "keycodes": ["4"]},
+      {"action": "tap", "keycodes": ["ENT"]}
     ]
   ],
   "layout": "LAYOUT",
@@ -182,7 +188,7 @@
       "QK_MACRO_0",
       "QK_MACRO_1",
       "QK_MACRO_2",
-      "KC_RSFT",
+      "QK_MACRO_3",
       "UG_VALU",
       "UG_HUED",
       "KC_LCTL",
