@@ -1,0 +1,188 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly config_dir="${SUPER_CLAUDE_CONFIG_DIR:-$HOME/.super-claude}"
+readonly settings_file="$config_dir/settings.json"
+readonly runner="${SUPER_CLAUDE_RUNNER_PATH:-$HOME/.zshrc.d/scripts/super-claude}"
+
+usage() {
+  cat <<'EOF'
+Usage: super-claude-menu [claude arguments]
+
+Select a model from the isolated Super Claude profile, then launch it for this
+session. The saved /model default is marked but is not rewritten.
+
+Examples:
+  super-claude-menu
+  super-claude-menu --continue
+  super-claude-menu -p 'Reply exactly OK.'
+  super-claude-menu --model claude-xai-grok-4.5  # bypasses the menu
+
+Environment:
+  SUPER_CLAUDE_CONFIG_DIR   Override the isolated profile directory.
+  SUPER_CLAUDE_RUNNER_PATH  Override the super-claude launcher path.
+EOF
+}
+
+friendly_name() {
+  case "$1" in
+    claude-anthropic-fable-5) printf '%s\n' 'Anthropic / Fable 5' ;;
+    claude-anthropic-opus-4.8) printf '%s\n' 'Anthropic / Opus 4.8' ;;
+    claude-anthropic-sonnet-5) printf '%s\n' 'Anthropic / Sonnet 5' ;;
+    claude-codex-gpt-5.6-sol) printf '%s\n' 'Codex / GPT-5.6 Sol' ;;
+    claude-codex-gpt-5.6-terra) printf '%s\n' 'Codex / GPT-5.6 Terra' ;;
+    claude-codex-gpt-5.6-luna) printf '%s\n' 'Codex / GPT-5.6 Luna' ;;
+    claude-xai-grok-4.5) printf '%s\n' 'xAI / Grok 4.5' ;;
+    claude-kimi-k3) printf '%s\n' 'Kimi / K3' ;;
+    claude-opencode-glm-5.2) printf '%s\n' 'OpenCode / GLM-5.2' ;;
+    *) printf '%s\n' "$1" ;;
+  esac
+}
+
+[[ -x "$runner" ]] || {
+  printf 'super-claude-menu: runner is not executable: %s\n' "$runner" >&2
+  exit 127
+}
+
+args=()
+if (($# > 0)); then
+  args=("$@")
+fi
+bypass_menu=0
+show_help=0
+skip_next_management_token=0
+
+if ((${#args[@]} > 0)); then
+  for arg in "${args[@]}"; do
+    if [[ "$skip_next_management_token" == 1 ]]; then
+      skip_next_management_token=0
+    else
+      case "$arg" in
+        --help|-h) show_help=1 ;;
+        --version|-v|auth|doctor|install|mcp|plugin|update) bypass_menu=1 ;;
+      esac
+    fi
+
+    case "$arg" in
+      --model|--model=*) bypass_menu=1 ;;
+      --print|-p) skip_next_management_token=1 ;;
+    esac
+  done
+fi
+
+if [[ "$show_help" == 1 ]]; then
+  usage
+  exit 0
+fi
+
+if [[ "$bypass_menu" == 1 ]]; then
+  exec "$runner" "${args[@]}"
+fi
+
+if [[ ! -f "$settings_file" ]]; then
+  "$runner" --version >/dev/null
+fi
+
+[[ -f "$settings_file" ]] || {
+  printf 'super-claude-menu: settings file was not created: %s\n' "$settings_file" >&2
+  exit 1
+}
+
+command -v jq >/dev/null 2>&1 || {
+  printf 'super-claude-menu: jq is required to read %s\n' "$settings_file" >&2
+  exit 127
+}
+
+if ! catalog="$(jq -er '.availableModels | if type == "array" and length > 0 then .[] else error("availableModels is empty") end' "$settings_file")"; then
+  printf 'super-claude-menu: could not read availableModels from %s\n' "$settings_file" >&2
+  exit 1
+fi
+
+saved_model="$(jq -r 'if (.model | type) == "string" then .model else "" end' "$settings_file")"
+models=()
+while IFS= read -r model; do
+  [[ -n "$model" ]] && models+=("$model")
+done <<< "$catalog"
+
+((${#models[@]} > 0)) || {
+  printf 'super-claude-menu: no models are available in %s\n' "$settings_file" >&2
+  exit 1
+}
+
+ordered_models=()
+saved_available=0
+for model in "${models[@]}"; do
+  if [[ "$model" == "$saved_model" ]]; then
+    saved_available=1
+    break
+  fi
+done
+
+if [[ "$saved_available" == 1 ]]; then
+  ordered_models+=("$saved_model")
+fi
+for model in "${models[@]}"; do
+  [[ "$model" == "$saved_model" ]] || ordered_models+=("$model")
+done
+
+labels=()
+rows=""
+for model in "${ordered_models[@]}"; do
+  label="$(friendly_name "$model")"
+  if [[ "$model" == "$saved_model" ]]; then
+    label="$label  [saved default]"
+  fi
+  labels+=("$label")
+  rows+="$label"$'\t'"$model"$'\n'
+done
+rows="${rows%$'\n'}"
+
+selected_model=""
+if command -v fzf >/dev/null 2>&1; then
+  set +e
+  selection="$(
+    printf '%s\n' "$rows" | fzf \
+      --delimiter=$'\t' \
+      --with-nth=1 \
+      --height=80% \
+      --layout=reverse \
+      --border \
+      --no-multi \
+      --prompt='Super Claude model > ' \
+      --header='Enter: launch  •  Esc: cancel'
+  )"
+  selection_status=$?
+  set -e
+  [[ "$selection_status" == 0 ]] || exit "$selection_status"
+  selected_model="${selection##*$'\t'}"
+else
+  printf 'Super Claude model\n' >&2
+  PS3='Select a model (Ctrl-D to cancel): '
+  select selected_label in "${labels[@]}"; do
+    if [[ -n "${selected_label:-}" ]]; then
+      selected_model="${ordered_models[$((REPLY - 1))]}"
+      break
+    fi
+    printf 'Invalid selection.\n' >&2
+  done
+  [[ -n "$selected_model" ]] || exit 130
+fi
+
+valid_selection=0
+for model in "${models[@]}"; do
+  if [[ "$model" == "$selected_model" ]]; then
+    valid_selection=1
+    break
+  fi
+done
+
+[[ "$valid_selection" == 1 ]] || {
+  printf 'super-claude-menu: picker returned an unknown model: %s\n' "$selected_model" >&2
+  exit 1
+}
+
+if ((${#args[@]} > 0)); then
+  exec "$runner" "${args[@]}" --model "$selected_model"
+else
+  exec "$runner" --model "$selected_model"
+fi
