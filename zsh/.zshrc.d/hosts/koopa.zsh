@@ -23,6 +23,16 @@ if [[ -d "$grok_bin" ]]; then
   esac
 fi
 
+# Kimi Code installed outside mise.
+kimi_code_bin="$HOME/.kimi-code/bin"
+if [[ -d "$kimi_code_bin" ]]; then
+  case ":$PATH:" in
+    *":$kimi_code_bin:"*) ;;
+    *) export PATH="$kimi_code_bin:$PATH" ;;
+  esac
+fi
+unset kimi_code_bin
+
 # Portless defaults for this always-home Mac. This is a non-secret preference,
 # so it belongs in the host-specific zsh file rather than keys/private files.
 # PORTLESS_LAN=1 makes manual proxy starts default to mDNS/LAN mode; the
