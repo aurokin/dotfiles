@@ -15,6 +15,30 @@ fi
 mkdir -p "$config_dir"
 chmod 700 "$config_dir"
 
+settings_file="$config_dir/settings.json"
+if [[ ! -e "$settings_file" ]]; then
+  settings_tmp="$(mktemp "${settings_file}.tmp.XXXXXX")"
+  trap 'rm -f "$settings_tmp"' EXIT
+  printf '%s\n' '{
+  "model": "claude-anthropic-fable-5",
+  "availableModels": [
+    "claude-anthropic-fable-5",
+    "claude-anthropic-opus-4.8",
+    "claude-anthropic-sonnet-5",
+    "claude-codex-gpt-5.6-sol",
+    "claude-codex-gpt-5.6-terra",
+    "claude-codex-gpt-5.6-luna",
+    "claude-xai-grok-4.5",
+    "claude-kimi-k3",
+    "claude-opencode-glm-5.2"
+  ]
+}' > "$settings_tmp"
+  chmod 600 "$settings_tmp"
+  mv "$settings_tmp" "$settings_file"
+  trap - EXIT
+fi
+chmod 600 "$settings_file"
+
 export CLAUDE_CONFIG_DIR="$config_dir"
 export ANTHROPIC_BASE_URL="$base_url"
 unset ANTHROPIC_API_KEY
