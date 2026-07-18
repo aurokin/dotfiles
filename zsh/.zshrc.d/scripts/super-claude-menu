@@ -3,6 +3,7 @@ set -euo pipefail
 
 readonly config_dir="${SUPER_CLAUDE_CONFIG_DIR:-$HOME/.super-claude}"
 readonly settings_file="$config_dir/settings.json"
+readonly subagent_model_file="$config_dir/subagent-model"
 readonly runner="${SUPER_CLAUDE_RUNNER_PATH:-$HOME/.zshrc.d/scripts/super-claude}"
 
 usage() {
@@ -10,7 +11,8 @@ usage() {
 Usage: super-claude-menu [claude arguments]
 
 Select a model from the isolated Super Claude profile, then launch it for this
-session. The saved /model default is marked but is not rewritten.
+session. The saved /model default is not rewritten; the selection becomes the
+sticky subagent model for future Super Claude sessions.
 
 Examples:
   super-claude-menu
@@ -37,6 +39,29 @@ friendly_name() {
     claude-opencode-glm-5.2) printf '%s\n' 'OpenCode / GLM-5.2' ;;
     *) printf '%s\n' "$1" ;;
   esac
+}
+
+normalize_saved_model() {
+  case "$1" in
+    fable) printf '%s\n' 'claude-anthropic-fable-5' ;;
+    opus) printf '%s\n' 'claude-anthropic-opus-4.8' ;;
+    sonnet) printf '%s\n' 'claude-anthropic-sonnet-5' ;;
+    *) printf '%s\n' "$1" ;;
+  esac
+}
+
+persist_subagent_model() {
+  local model="$1" temp_file
+  umask 077
+  temp_file="$(mktemp "$config_dir/.subagent-model.XXXXXX")"
+  if ! printf '%s\n' "$model" > "$temp_file"; then
+    rm -f "$temp_file"
+    return 1
+  fi
+  if ! chmod 600 "$temp_file" || ! mv -f "$temp_file" "$subagent_model_file"; then
+    rm -f "$temp_file"
+    return 1
+  fi
 }
 
 [[ -x "$runner" ]] || {
@@ -99,6 +124,7 @@ if ! catalog="$(jq -er '.availableModels | if type == "array" and length > 0 the
 fi
 
 saved_model="$(jq -r 'if (.model | type) == "string" then .model else "" end' "$settings_file")"
+saved_model="$(normalize_saved_model "$saved_model")"
 models=()
 while IFS= read -r model; do
   [[ -n "$model" ]] && models+=("$model")
@@ -180,6 +206,9 @@ done
   printf 'super-claude-menu: picker returned an unknown model: %s\n' "$selected_model" >&2
   exit 1
 }
+
+persist_subagent_model "$selected_model"
+export SUPER_CLAUDE_SUBAGENT_MODEL="$selected_model"
 
 if ((${#args[@]} > 0)); then
   exec "$runner" "${args[@]}" --model "$selected_model"

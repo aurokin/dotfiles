@@ -19,6 +19,7 @@ printf '%s\n' '#!/usr/bin/env bash' \
   '  printf "{\"model\":\"%s\",\"availableModels\":[\"%s\"]}\n" "$FAKE_BOOTSTRAP_MODEL" "$FAKE_BOOTSTRAP_MODEL" > "$SUPER_CLAUDE_CONFIG_DIR/settings.json"' \
   '  exit 0' \
   'fi' \
+  'printf "RUNNER_SUBAGENT=%s\n" "${SUPER_CLAUDE_SUBAGENT_MODEL-<unset>}"' \
   'printf "RUNNER_ARGS="' \
   'for arg in "$@"; do printf "<%s>" "$arg"; done' \
   'printf "\n"' > "$fake_bin/super-claude"
@@ -85,6 +86,14 @@ standard_settings() {
     'claude-opencode-glm-5.2'
 }
 
+file_mode() {
+  if [[ "$(uname -s)" == 'Darwin' ]]; then
+    stat -f '%Lp' "$1"
+  else
+    stat -c '%a' "$1"
+  fi
+}
+
 run_menu() {
   local profile="$1"
   shift
@@ -107,7 +116,11 @@ test_friendly_selection_and_passthrough() {
   standard_settings "$profile"
   local output
   output="$(FZF_SELECT='Kimi / K3' FZF_CAPTURE="$capture" run_menu "$profile" --dangerously-skip-permissions --continue)"
+  assert_contains "$output" 'RUNNER_SUBAGENT=claude-kimi-k3' 'selected subagent environment'
   assert_contains "$output" 'RUNNER_ARGS=<--dangerously-skip-permissions><--continue><--model><claude-kimi-k3>' 'selected runner arguments'
+  [[ "$(<"$profile/subagent-model")" == 'claude-kimi-k3' ]] || fail 'selected subagent preference was not persisted'
+  [[ "$(file_mode "$profile/subagent-model")" == 600 ]] || fail 'selected subagent preference mode is not 600'
+  [[ "$(jq -r .model "$profile/settings.json")" == 'claude-codex-gpt-5.6-sol' ]] || fail 'menu rewrote the saved main model'
   local rows
   rows="$(<"$capture")"
   assert_contains "$rows" $'Codex / GPT-5.6 Sol  [saved default]\tclaude-codex-gpt-5.6-sol' 'saved default first row'
@@ -119,21 +132,42 @@ test_unknown_model_uses_raw_id() {
   write_settings "$profile" 'claude-future-model' 'claude-future-model'
   local output
   output="$(FZF_SELECT='claude-future-model' run_menu "$profile")"
+  assert_contains "$output" 'RUNNER_SUBAGENT=claude-future-model' 'unknown subagent environment'
   assert_contains "$output" 'RUNNER_ARGS=<--model><claude-future-model>' 'unknown model selection'
+  [[ "$(<"$profile/subagent-model")" == 'claude-future-model' ]] || fail 'unknown model preference was not persisted'
+}
+
+test_family_shorthand_marks_saved_default() {
+  local profile="$tmp_root/family-shorthand" capture="$tmp_root/family-shorthand-fzf"
+  write_settings "$profile" 'fable' \
+    'claude-anthropic-fable-5' \
+    'claude-codex-gpt-5.6-sol'
+  local output rows
+  output="$(FZF_SELECT='Anthropic / Fable 5' FZF_CAPTURE="$capture" run_menu "$profile")"
+  rows="$(<"$capture")"
+  assert_contains "$rows" $'Anthropic / Fable 5  [saved default]\tclaude-anthropic-fable-5' 'family shorthand saved row'
+  assert_contains "$output" 'RUNNER_SUBAGENT=claude-anthropic-fable-5' 'family shorthand selected child'
+  [[ "$(jq -r .model "$profile/settings.json")" == 'fable' ]] || fail 'family shorthand main default was rewritten'
 }
 
 test_explicit_model_bypasses_menu() {
   local profile="$tmp_root/explicit" capture="$tmp_root/explicit-fzf"
   standard_settings "$profile"
+  printf '%s\n' 'claude-codex-gpt-5.6-sol' > "$profile/subagent-model"
+  chmod 600 "$profile/subagent-model"
   local output
   output="$(FZF_CAPTURE="$capture" run_menu "$profile" --model claude-xai-grok-4.5 -p hello)"
+  assert_contains "$output" 'RUNNER_SUBAGENT=<unset>' 'explicit bypass environment'
   assert_contains "$output" 'RUNNER_ARGS=<--model><claude-xai-grok-4.5><-p><hello>' 'explicit model passthrough'
   [[ ! -e "$capture" ]] || fail 'explicit model unexpectedly opened fzf'
+  [[ "$(<"$profile/subagent-model")" == 'claude-codex-gpt-5.6-sol' ]] || fail 'explicit bypass changed sticky preference'
 }
 
 test_cancel_launches_nothing() {
   local profile="$tmp_root/cancel" log="$tmp_root/cancel-runner"
   standard_settings "$profile"
+  printf '%s\n' 'claude-codex-gpt-5.6-sol' > "$profile/subagent-model"
+  chmod 600 "$profile/subagent-model"
   local status
   set +e
   FZF_CANCEL=1 FAKE_RUNNER_LOG="$log" run_menu "$profile" >/dev/null 2>&1
@@ -141,6 +175,7 @@ test_cancel_launches_nothing() {
   set -e
   [[ "$status" == 130 ]] || fail "cancel returned $status instead of 130"
   [[ ! -s "$log" ]] || fail 'cancel invoked the runner'
+  [[ "$(<"$profile/subagent-model")" == 'claude-codex-gpt-5.6-sol' ]] || fail 'cancel changed sticky preference'
 }
 
 test_numbered_fallback() {
@@ -153,15 +188,19 @@ test_numbered_fallback() {
       SUPER_CLAUDE_RUNNER_PATH="$fake_bin/super-claude" \
       "$menu" --dangerously-skip-permissions 2>/dev/null
   )"
+  assert_contains "$output" 'RUNNER_SUBAGENT=claude-anthropic-fable-5' 'numbered fallback subagent environment'
   assert_contains "$output" 'RUNNER_ARGS=<--dangerously-skip-permissions><--model><claude-anthropic-fable-5>' 'numbered fallback selection'
+  [[ "$(<"$profile/subagent-model")" == 'claude-anthropic-fable-5' ]] || fail 'numbered fallback preference was not persisted'
 }
 
 test_missing_profile_bootstraps_through_runner() {
   local profile="$tmp_root/bootstrap"
   local output
   output="$(FAKE_BOOTSTRAP_MODEL='claude-anthropic-opus-4.8' FZF_SELECT='Anthropic / Opus 4.8' run_menu "$profile")"
+  assert_contains "$output" 'RUNNER_SUBAGENT=claude-anthropic-opus-4.8' 'bootstrap subagent environment'
   assert_contains "$output" 'RUNNER_ARGS=<--model><claude-anthropic-opus-4.8>' 'bootstrap selection'
   [[ -f "$profile/settings.json" ]] || fail 'menu did not bootstrap missing profile settings'
+  [[ "$(<"$profile/subagent-model")" == 'claude-anthropic-opus-4.8' ]] || fail 'bootstrap preference was not persisted'
 }
 
 test_help_is_local_and_does_not_launch() {
@@ -175,6 +214,7 @@ test_help_is_local_and_does_not_launch() {
 
 run_test 'friendly selection and passthrough' test_friendly_selection_and_passthrough
 run_test 'unknown model raw ID' test_unknown_model_uses_raw_id
+run_test 'family shorthand saved default' test_family_shorthand_marks_saved_default
 run_test 'explicit model bypass' test_explicit_model_bypasses_menu
 run_test 'cancel launches nothing' test_cancel_launches_nothing
 run_test 'numbered fallback' test_numbered_fallback

@@ -41,6 +41,13 @@ write_settings() {
   printf '{"model":"%s","availableModels":["%s"]}\n' "$model" "$model" > "$profile/settings.json"
 }
 
+write_subagent_model() {
+  local profile="$1" model="$2"
+  mkdir -p "$profile"
+  printf '%s\n' "$model" > "$profile/subagent-model"
+  chmod 600 "$profile/subagent-model"
+}
+
 run_launcher() {
   local profile="$1"
   shift
@@ -85,6 +92,46 @@ test_saved_model() {
   assert_not_contains "$output" 'claude-anthropic-fable-5' 'saved model must not reset to Fable'
 }
 
+test_sticky_subagent_differs_from_saved_main() {
+  local profile="$tmp_root/sticky-split"
+  write_settings "$profile" 'fable'
+  write_subagent_model "$profile" 'claude-codex-gpt-5.6-sol'
+  local output
+  output="$(run_launcher "$profile" prompt)"
+  assert_contains "$output" 'CLAUDE_CODE_SUBAGENT_MODEL=claude-codex-gpt-5.6-sol' 'sticky subagent model'
+  assert_contains "$output" 'ARGS=<prompt><--model><fable><--permission-mode><default>' 'saved main model remains independent'
+}
+
+test_sticky_subagent_overrides_explicit_main() {
+  local profile="$tmp_root/sticky-explicit-main"
+  write_settings "$profile" 'fable'
+  write_subagent_model "$profile" 'claude-codex-gpt-5.6-sol'
+  local output
+  output="$(run_launcher "$profile" --model claude-xai-grok-4.5 prompt)"
+  assert_contains "$output" 'CLAUDE_CODE_SUBAGENT_MODEL=claude-codex-gpt-5.6-sol' 'sticky child with explicit main'
+  assert_contains "$output" 'ARGS=<--model><claude-xai-grok-4.5><prompt><--permission-mode><default>' 'explicit main remains Grok'
+}
+
+test_sticky_subagent_applies_on_resume() {
+  local profile="$tmp_root/sticky-resume"
+  write_settings "$profile" 'fable'
+  write_subagent_model "$profile" 'claude-codex-gpt-5.6-sol'
+  local output
+  output="$(run_launcher "$profile" --resume 00000000-0000-0000-0000-000000000000)"
+  assert_contains "$output" 'CLAUDE_CODE_SUBAGENT_MODEL=claude-codex-gpt-5.6-sol' 'sticky child on resume'
+  assert_not_contains "$output" '<--model>' 'sticky resume must not override main model'
+}
+
+test_invalid_sticky_subagent_falls_back() {
+  local profile="$tmp_root/sticky-invalid"
+  write_settings "$profile" 'fable'
+  write_subagent_model "$profile" '../../not-a-model'
+  local output
+  output="$(run_launcher "$profile" prompt 2>/dev/null)"
+  assert_contains "$output" 'CLAUDE_CODE_SUBAGENT_MODEL=fable' 'invalid sticky fallback'
+  assert_contains "$output" 'ARGS=<prompt><--model><fable><--permission-mode><default>' 'invalid sticky preserves main'
+}
+
 test_explicit_model_pair() {
   local profile="$tmp_root/explicit-pair"
   write_settings "$profile" 'claude-codex-gpt-5.6-sol'
@@ -106,6 +153,7 @@ test_explicit_model_equals() {
 test_dedicated_subagent_override() {
   local profile="$tmp_root/subagent-override"
   write_settings "$profile" 'claude-codex-gpt-5.6-sol'
+  write_subagent_model "$profile" 'claude-kimi-k3'
   local output
   output="$(SUPER_CLAUDE_SUBAGENT_MODEL=claude-anthropic-opus-4.8 run_launcher "$profile" prompt)"
   assert_contains "$output" 'CLAUDE_CODE_SUBAGENT_MODEL=claude-anthropic-opus-4.8' 'dedicated subagent override'
@@ -115,6 +163,7 @@ test_dedicated_subagent_override() {
 test_official_subagent_override() {
   local profile="$tmp_root/official-subagent-override"
   write_settings "$profile" 'claude-codex-gpt-5.6-sol'
+  write_subagent_model "$profile" 'claude-kimi-k3'
   local output
   output="$(
     PATH="$fake_bin:/usr/bin:/bin" \
@@ -167,6 +216,10 @@ test_print_prompt_named_like_command_still_gets_model() {
 
 run_test 'first-run bootstrap' test_first_run_bootstrap
 run_test 'saved model' test_saved_model
+run_test 'sticky child differs from saved main' test_sticky_subagent_differs_from_saved_main
+run_test 'sticky child overrides explicit main' test_sticky_subagent_overrides_explicit_main
+run_test 'sticky child applies on resume' test_sticky_subagent_applies_on_resume
+run_test 'invalid sticky child fallback' test_invalid_sticky_subagent_falls_back
 run_test 'explicit --model pair' test_explicit_model_pair
 run_test 'explicit --model=value' test_explicit_model_equals
 run_test 'dedicated subagent override' test_dedicated_subagent_override

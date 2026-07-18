@@ -16,6 +16,7 @@ mkdir -p "$config_dir"
 chmod 700 "$config_dir"
 
 settings_file="$config_dir/settings.json"
+subagent_model_file="$config_dir/subagent-model"
 if [[ ! -e "$settings_file" ]]; then
   settings_tmp="$(mktemp "${settings_file}.tmp.XXXXXX")"
   trap 'rm -f "$settings_tmp"' EXIT
@@ -38,6 +39,9 @@ if [[ ! -e "$settings_file" ]]; then
   trap - EXIT
 fi
 chmod 600 "$settings_file"
+if [[ -f "$subagent_model_file" ]]; then
+  chmod 600 "$subagent_model_file"
+fi
 
 export CLAUDE_CONFIG_DIR="$config_dir"
 export ANTHROPIC_BASE_URL="$base_url"
@@ -72,6 +76,18 @@ read_saved_model() {
       return 0
     fi
   done < "$settings_file"
+  return 1
+}
+
+read_sticky_subagent_model() {
+  local model=""
+  [[ -f "$subagent_model_file" ]] || return 1
+  IFS= read -r model < "$subagent_model_file" || [[ -n "$model" ]] || return 1
+  if [[ "$model" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]*$ ]]; then
+    printf '%s\n' "$model"
+    return 0
+  fi
+  printf 'super-claude: ignoring invalid subagent model in %s\n' "$subagent_model_file" >&2
   return 1
 }
 
@@ -125,13 +141,21 @@ if [[ "$has_model" == 0 && "$has_resume" == 0 && "$skip_default_model" == 0 ]]; 
   args+=(--model "$launch_model")
 fi
 
-# A fixed launch-time override prevents Agent calls from silently switching a
-# child back to a built-in Claude tier. Restart after /model to resynchronize.
+# A menu-selected sticky child preference is independent from the main /model
+# default. Explicit environment variables remain the highest-precedence escape
+# hatch; without a sticky preference, preserve the historical main-model sync.
+sticky_subagent_model=""
+if ! sticky_subagent_model="$(read_sticky_subagent_model)"; then
+  sticky_subagent_model=""
+fi
+
 if [[ "$skip_default_model" == 0 ]]; then
   if [[ -n "${SUPER_CLAUDE_SUBAGENT_MODEL:-}" ]]; then
     export CLAUDE_CODE_SUBAGENT_MODEL="$SUPER_CLAUDE_SUBAGENT_MODEL"
   elif [[ -n "${CLAUDE_CODE_SUBAGENT_MODEL:-}" ]]; then
     export CLAUDE_CODE_SUBAGENT_MODEL
+  elif [[ -n "$sticky_subagent_model" ]]; then
+    export CLAUDE_CODE_SUBAGENT_MODEL="$sticky_subagent_model"
   elif [[ -n "$launch_model" ]]; then
     export CLAUDE_CODE_SUBAGENT_MODEL="$launch_model"
   else
