@@ -64,26 +64,81 @@ fi
 export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1
 export CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY="${SUPER_CLAUDE_MAX_CONCURRENCY:-3}"
 
+read_saved_model() {
+  local line
+  while IFS= read -r line; do
+    if [[ "$line" =~ \"model\"[[:space:]]*:[[:space:]]*\"([^\"]+)\" ]]; then
+      printf '%s\n' "${BASH_REMATCH[1]}"
+      return 0
+    fi
+  done < "$settings_file"
+  return 1
+}
+
 args=("$@")
 has_model=0
 has_resume=0
 has_permission_mode=0
 skip_default_model=0
+explicit_model=""
+skip_next_management_token=0
 
-for arg in "${args[@]}"; do
+for ((i = 0; i < ${#args[@]}; i++)); do
+  arg="${args[$i]}"
+  if [[ "$skip_next_management_token" == 1 ]]; then
+    skip_next_management_token=0
+  else
+    case "$arg" in
+      --help|-h|--version|-v|auth|doctor|install|mcp|plugin|update) skip_default_model=1 ;;
+    esac
+  fi
   case "$arg" in
-    --model|--model=*) has_model=1 ;;
+    --model)
+      has_model=1
+      if ((i + 1 < ${#args[@]})); then
+        explicit_model="${args[$((i + 1))]}"
+      fi
+      ;;
+    --model=*)
+      has_model=1
+      explicit_model="${arg#--model=}"
+      ;;
+    --print|-p) skip_next_management_token=1 ;;
     --resume|--resume=*|-r|--continue|-c) has_resume=1 ;;
     --dangerously-skip-permissions|--permission-mode|--permission-mode=*) has_permission_mode=1 ;;
   esac
 done
 
-case "${args[0]:-}" in
-  --help|-h|--version|-v|auth|doctor|install|mcp|plugin|update) skip_default_model=1 ;;
-esac
+launch_model="$explicit_model"
+if [[ -z "$launch_model" && -n "${SUPER_CLAUDE_DEFAULT_MODEL:-}" ]]; then
+  launch_model="$SUPER_CLAUDE_DEFAULT_MODEL"
+fi
 
+# Seed Fable only in the bootstrap file. Later ordinary launches honor the
+# exact model saved by /model; resume/continue keeps the transcript model.
 if [[ "$has_model" == 0 && "$has_resume" == 0 && "$skip_default_model" == 0 ]]; then
-  args+=(--model "${SUPER_CLAUDE_DEFAULT_MODEL:-claude-anthropic-fable-5}")
+  if [[ -z "$launch_model" ]]; then
+    if ! launch_model="$(read_saved_model)"; then
+      launch_model="claude-anthropic-fable-5"
+    fi
+  fi
+  args+=(--model "$launch_model")
+fi
+
+# A fixed launch-time override prevents Agent calls from silently switching a
+# child back to a built-in Claude tier. Restart after /model to resynchronize.
+if [[ "$skip_default_model" == 0 ]]; then
+  if [[ -n "${SUPER_CLAUDE_SUBAGENT_MODEL:-}" ]]; then
+    export CLAUDE_CODE_SUBAGENT_MODEL="$SUPER_CLAUDE_SUBAGENT_MODEL"
+  elif [[ -n "${CLAUDE_CODE_SUBAGENT_MODEL:-}" ]]; then
+    export CLAUDE_CODE_SUBAGENT_MODEL
+  elif [[ -n "$launch_model" ]]; then
+    export CLAUDE_CODE_SUBAGENT_MODEL="$launch_model"
+  else
+    unset CLAUDE_CODE_SUBAGENT_MODEL
+  fi
+else
+  unset CLAUDE_CODE_SUBAGENT_MODEL
 fi
 
 if [[ "$has_permission_mode" == 0 ]]; then
