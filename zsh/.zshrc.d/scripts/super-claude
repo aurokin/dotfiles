@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly config_dir="${SUPER_CLAUDE_CONFIG_DIR:-$HOME/.super-claude}"
+readonly base_url="${SUPER_CLAUDE_BASE_URL:-http://infra.home.arpa:8317}"
+
+claude_bin="$(command -v claude || true)"
+if [[ -z "$claude_bin" ]]; then
+  echo "super-claude: claude is not available on PATH." >&2
+  exit 127
+fi
+
+: "${SUPER_CLAUDE_API_KEY:?super-claude: SUPER_CLAUDE_API_KEY is not set; add it to ~/.zshrc.d/keys.zsh}"
+
+mkdir -p "$config_dir"
+chmod 700 "$config_dir"
+
+export CLAUDE_CONFIG_DIR="$config_dir"
+export ANTHROPIC_BASE_URL="$base_url"
+unset ANTHROPIC_API_KEY
+unset CLAUDE_CODE_USE_BEDROCK CLAUDE_CODE_USE_VERTEX CLAUDE_CODE_USE_FOUNDRY
+export ANTHROPIC_AUTH_TOKEN="$SUPER_CLAUDE_API_KEY"
+
+export ANTHROPIC_DEFAULT_FABLE_MODEL="claude-anthropic-fable-5"
+export ANTHROPIC_DEFAULT_FABLE_MODEL_NAME="Fable 5"
+export ANTHROPIC_DEFAULT_FABLE_MODEL_DESCRIPTION="Anthropic / Fable 5 through Super Claude"
+export ANTHROPIC_DEFAULT_OPUS_MODEL="claude-anthropic-opus-4.8"
+export ANTHROPIC_DEFAULT_OPUS_MODEL_NAME="Opus 4.8"
+export ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION="Anthropic / Opus 4.8 through Super Claude"
+export ANTHROPIC_DEFAULT_SONNET_MODEL="claude-anthropic-sonnet-5"
+export ANTHROPIC_DEFAULT_SONNET_MODEL_NAME="Sonnet 5"
+export ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION="Anthropic / Sonnet 5 through Super Claude"
+
+if [[ -n "${SUPER_CLAUDE_DEFAULT_MODEL:-}" ]]; then
+  export ANTHROPIC_MODEL="$SUPER_CLAUDE_DEFAULT_MODEL"
+else
+  unset ANTHROPIC_MODEL
+fi
+
+export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1
+export CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY="${SUPER_CLAUDE_MAX_CONCURRENCY:-3}"
+
+args=("$@")
+has_model=0
+has_resume=0
+has_permission_mode=0
+skip_default_model=0
+
+for arg in "${args[@]}"; do
+  case "$arg" in
+    --model|--model=*) has_model=1 ;;
+    --resume|--resume=*|-r|--continue|-c) has_resume=1 ;;
+    --dangerously-skip-permissions|--permission-mode|--permission-mode=*) has_permission_mode=1 ;;
+  esac
+done
+
+case "${args[0]:-}" in
+  --help|-h|--version|-v|auth|doctor|install|mcp|plugin|update) skip_default_model=1 ;;
+esac
+
+if [[ "$has_model" == 0 && "$has_resume" == 0 && "$skip_default_model" == 0 ]]; then
+  args+=(--model "${SUPER_CLAUDE_DEFAULT_MODEL:-claude-anthropic-fable-5}")
+fi
+
+if [[ "$has_permission_mode" == 0 ]]; then
+  args+=(--permission-mode default)
+fi
+
+exec "$claude_bin" "${args[@]}"

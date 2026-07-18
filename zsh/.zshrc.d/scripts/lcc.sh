@@ -2,6 +2,17 @@
 set -euo pipefail
 
 run_resume() {
+  if [[ -n "${LCC_RUNNER_PATH:-}" ]]; then
+    local runner_args=(--resume "$@")
+    if [[ "${LCC_FORK_SESSION:-0}" == "1" ]]; then
+      runner_args=(--fork-session "${runner_args[@]}")
+    fi
+    if [[ "${LCC_DANGEROUS:-0}" == "1" ]]; then
+      runner_args=(--dangerously-skip-permissions "${runner_args[@]}")
+    fi
+    exec "$LCC_RUNNER_PATH" "${runner_args[@]}"
+  fi
+
   # Prefer interactive zsh so .zshrc loads aliases/functions (including `cc`).
   if command -v zsh >/dev/null 2>&1; then
     if [[ "${LCC_FORK_SESSION:-0}" == "1" ]]; then
@@ -120,6 +131,9 @@ Behavior:
 Environment:
   LCC_FORK_SESSION=1  Add --fork-session when resuming/continuing.
                       Used by the lccr alias for Claude Code recovery.
+  LCC_RUNNER_PATH     Optional launcher path instead of the native cc alias.
+  LCC_DANGEROUS=1     Add --dangerously-skip-permissions to LCC_RUNNER_PATH.
+  CLAUDE_HOME         Session/history root; defaults to ~/.claude.
 EOF
   exit 0
 fi
@@ -136,6 +150,17 @@ fi
 
 if [[ -n "$session_id" ]]; then
   run_resume "$session_id"
+fi
+
+if [[ -n "${LCC_RUNNER_PATH:-}" ]]; then
+  runner_args=(--continue)
+  if [[ "${LCC_FORK_SESSION:-0}" == "1" ]]; then
+    runner_args=(--fork-session "${runner_args[@]}")
+  fi
+  if [[ "${LCC_DANGEROUS:-0}" == "1" ]]; then
+    runner_args=(--dangerously-skip-permissions "${runner_args[@]}")
+  fi
+  exec "$LCC_RUNNER_PATH" "${runner_args[@]}"
 fi
 
 if command -v zsh >/dev/null 2>&1; then

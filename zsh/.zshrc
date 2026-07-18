@@ -68,9 +68,12 @@ alias c="clear"
 alias icat="kitten icat"
 # Keep zsh/.zshrc.d/scripts/lcc.sh in sync if this command changes.
 alias cc="claude --dangerously-skip-permissions"
+alias super-claude="$HOME/.zshrc.d/scripts/super-claude"
+alias scc="$HOME/.zshrc.d/scripts/super-claude --dangerously-skip-permissions"
 alias ca="cursor-agent --force"
 alias lcc="$HOME/.zshrc.d/scripts/lcc.sh"
 alias lccr="LCC_FORK_SESSION=1 $HOME/.zshrc.d/scripts/lcc.sh"
+alias lscc="CLAUDE_HOME=$HOME/.super-claude LCC_RUNNER_PATH=$HOME/.zshrc.d/scripts/super-claude LCC_DANGEROUS=1 $HOME/.zshrc.d/scripts/lcc.sh"
 # Keep zsh/.zshrc.d/scripts/lgpt.sh in sync if this command changes.
 alias gpt="codex --dangerously-bypass-approvals-and-sandbox"
 alias lgpt="$HOME/.zshrc.d/scripts/lgpt.sh"
