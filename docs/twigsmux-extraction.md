@@ -6,7 +6,7 @@
 
 **Grafted from other proposals:**
 
-- **From P3:** `lib/resolve-wt.zsh` as a single named wt-discovery helper (`command -v wt` → `$TWIGSMUX_WT` → mise shims → `mise which wt` → loud error) instead of inline logic in run-fn.zsh; and the property that **all seven keybinds live in `twigsmux.tmux`** so an uninstalled plugin means unbound keys, never dangling `run-shell` errors.
+- **From P3:** `lib/resolve-wt.zsh` as a single named wt-discovery helper (`command -v wt` → `$TWIGSMUX_WT` → brew dirs → mise shims → `~/.local/bin` → `mise which wt` → loud error; brew dirs added at build time because wt is brew-installed on the fleet, not mise) instead of inline logic in run-fn.zsh; and the property that **all seven keybinds live in `twigsmux.tmux`** so an uninstalled plugin means unbound keys, never dangling `run-shell` errors.
 - **From P4:** pin the plugin — `set -g @plugin 'hsadler/twigsmux#v1'` — for rollback; the broken-zshrc smoke test as a migration gate; keep the popup-side call path CLI-shaped so a future mise-package extraction stays mechanical.
 - **From P1:** the guarded one-line .zshrc integration (silent no-op on hosts where TPM hasn't fetched); document the fd-3 `TWIGSMUX_PRINT_CD` cd-relay protocol in the README as the *designated future path* if functions ever become executables — do not build it now.
 - **From P2's own migration list (kept):** the `env -i` bare-environment test and the post-burn-in stow re-run to purge stale symlinks.
