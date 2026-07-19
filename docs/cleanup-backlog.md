@@ -24,9 +24,12 @@ The tell that a script is a project: it has its own tests in `tests/`.
    `git-new-worktree.sh`, `git-worktree-paths.sh`, `wtct.zsh`, `wtrt.zsh`,
    plus `docs/git-worktrees.md` and three test files. Largest and
    cleanest-bounded — extract first.
-2. **twigsmux** (~1,200 lines with `tmux-workspace.sh`, `tmux-kick.sh`,
-   `tmux-pane-utils.sh`, `tmux-popup.sh`; has a unit test). Only coupling
-   is `.tmux.conf` keybind paths.
+2. **twigsmux** — IN PROGRESS. Extracted as a TPM plugin to
+   `~/code/twigsmux` (github.com/aurokin/twigsmux, private until done);
+   design in docs/twigsmux-extraction.md. Dotfiles copies stay canonical
+   until cutover (the agentscan pattern): develop there, then flip
+   `.tmux.conf` to `set -g @plugin 'aurokin/twigsmux'` + one .zshrc
+   source line and delete the script copies here.
 3. **super-claude** + `super-claude-menu` (389 lines, two test files).
    Client for a network service with its own state dir (`~/.super-claude`);
    actively evolving, so separate versioning pays off.
