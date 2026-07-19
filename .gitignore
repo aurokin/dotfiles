@@ -3,6 +3,7 @@ tmux/.tmux/plugins/*
 workspace/*
 **/workspace/*
 lazygit/.config/lazygit/state.yml
+karabiner/.config/karabiner/automatic_backups/
 mise/.config/mise/config.local.toml
 hammerspoon/.hammerspoon/space-actions.log
 
