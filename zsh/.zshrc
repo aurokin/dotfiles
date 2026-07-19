@@ -144,6 +144,11 @@ if [[ -f "$KEYS_FILE" ]]; then
     source "$KEYS_FILE"
 fi
 
+# Scoped secret wrappers (Proton Pass) — replaces keys.zsh (dotfiles-private v2 P2)
+if [[ -f "$HOME/.zshrc.d/secrets.zsh" ]]; then
+    source "$HOME/.zshrc.d/secrets.zsh"
+fi
+
 if [[ -f "$HOME/.zshrc.d/scripts/tmux-reload.zsh" ]]; then
     source "$HOME/.zshrc.d/scripts/tmux-reload.zsh"
 fi
