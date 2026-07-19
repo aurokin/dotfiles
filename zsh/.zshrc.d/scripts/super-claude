@@ -26,8 +26,10 @@ if [[ -z "${SUPER_CLAUDE_API_KEY:-}" ]]; then
       export PROTON_PASS_KEY_PROVIDER="${PROTON_PASS_KEY_PROVIDER:-fs}"
       export PROTON_PASS_SESSION_DIR="${PROTON_PASS_SESSION_DIR:-$HOME/.local/state/proton-pass-agent}"
     fi
-    # Fetch the value and export it ourselves: `pass-cli run` pipes stdio even
+    # Fetch the value ourselves instead of `pass-cli run`: run pipes stdio even
     # with --no-masking, which breaks the interactive TUI's tty detection.
+    # Deliberately NOT exported — the child gets it via the
+    # `export ANTHROPIC_AUTH_TOKEN="$SUPER_CLAUDE_API_KEY"` line below.
     if ! SUPER_CLAUDE_API_KEY="$(PROTON_PASS_AGENT_REASON="${PROTON_PASS_AGENT_REASON:-super-claude launch}" pass-cli item view "$key_ref")"; then
       echo "super-claude: pass-cli could not resolve $key_ref (session expired? run secrets-bootstrap)" >&2
       exit 1
