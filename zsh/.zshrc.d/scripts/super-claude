@@ -10,7 +10,34 @@ if [[ -z "$claude_bin" ]]; then
   exit 127
 fi
 
-: "${SUPER_CLAUDE_API_KEY:?super-claude: SUPER_CLAUDE_API_KEY is not set; add it to ~/.zshrc.d/keys.zsh}"
+# Key injection lives HERE, not in a secrets.zsh wrapper: non-interactive
+# invocations (ssh <host> super-claude, launchd, scripts) never source
+# .zshrc.d, and this must work on a headless tty (e.g. mander runs).
+readonly secrets_env="${SUPER_CLAUDE_SECRETS_ENV:-$HOME/.dotfiles-private/secrets/env/super-claude.env}"
+if [[ -z "${SUPER_CLAUDE_API_KEY:-}" ]]; then
+  key_ref=""
+  if [[ -r "$secrets_env" ]]; then
+    key_ref="$(sed -n 's/^SUPER_CLAUDE_API_KEY=//p' "$secrets_env" | head -n 1)"
+  fi
+  if command -v pass-cli >/dev/null 2>&1 && [[ -n "$key_ref" ]]; then
+    # Replicate secrets.zsh's fleet routing (agent token + fs key provider):
+    # the macOS keychain is locked in SSH/headless sessions.
+    if [[ -f "$HOME/.config/proton-pass/agent-token" ]]; then
+      export PROTON_PASS_KEY_PROVIDER="${PROTON_PASS_KEY_PROVIDER:-fs}"
+      export PROTON_PASS_SESSION_DIR="${PROTON_PASS_SESSION_DIR:-$HOME/.local/state/proton-pass-agent}"
+    fi
+    # Fetch the value and export it ourselves: `pass-cli run` pipes stdio even
+    # with --no-masking, which breaks the interactive TUI's tty detection.
+    if ! SUPER_CLAUDE_API_KEY="$(PROTON_PASS_AGENT_REASON="${PROTON_PASS_AGENT_REASON:-super-claude launch}" pass-cli item view "$key_ref")"; then
+      echo "super-claude: pass-cli could not resolve $key_ref (session expired? run secrets-bootstrap)" >&2
+      exit 1
+    fi
+  fi
+  if [[ -z "${SUPER_CLAUDE_API_KEY:-}" ]]; then
+    echo "super-claude: SUPER_CLAUDE_API_KEY is not set and pass-cli injection is unavailable (need pass-cli, an authenticated session, and $secrets_env)." >&2
+    exit 1
+  fi
+fi
 
 mkdir -p "$config_dir"
 chmod 700 "$config_dir"
