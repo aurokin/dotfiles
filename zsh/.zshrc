@@ -173,8 +173,11 @@ if command -v zoxide >/dev/null 2>&1; then
     # whence -p, not command -v: secrets.zsh defines a zdr wrapper FUNCTION on
     # every host, so command -v passes even where the real binary is absent
     # (verified: "secrets: zdr executable not found" at login on luma).
+    # Init must call the real binary, not the wrapper: the wrapper routes
+    # through pass-cli (two network round-trips, ~2s of shell startup —
+    # measured koopa 2026-07-19) and `zdr init` needs no secret.
     if whence -p zdr >/dev/null 2>&1; then
-        eval "$(zdr init zsh)"
+        eval "$("$(whence -p zdr)" init zsh)"
     fi
 fi
 
