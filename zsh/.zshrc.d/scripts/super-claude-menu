@@ -12,7 +12,9 @@ Usage: super-claude-menu [claude arguments]
 
 Select a model from the isolated Super Claude profile, then launch it for this
 session. The saved /model default is not rewritten; the selection becomes the
-sticky subagent model for future Super Claude sessions.
+sticky subagent model for future Super Claude sessions. When a sticky subagent
+model is set, the menu also offers a "Clear sticky subagent model" entry that
+removes it and launches with defaults.
 
 Examples:
   super-claude-menu
@@ -161,6 +163,20 @@ for model in "${ordered_models[@]}"; do
   labels+=("$label")
   rows+="$label"$'\t'"$model"$'\n'
 done
+
+# Sentinel starts with '[' so it can never collide with a real model id (the
+# launcher only accepts ids matching ^[A-Za-z0-9]).
+readonly clear_sentinel='[clear-sticky]'
+sticky_model=""
+if [[ -f "$subagent_model_file" ]]; then
+  IFS= read -r sticky_model < "$subagent_model_file" || true
+fi
+if [[ -n "$sticky_model" ]]; then
+  label="Clear sticky subagent model  [$(friendly_name "$sticky_model")]"
+  labels+=("$label")
+  ordered_models+=("$clear_sentinel")
+  rows+="$label"$'\t'"$clear_sentinel"$'\n'
+fi
 rows="${rows%$'\n'}"
 
 selected_model=""
@@ -192,6 +208,15 @@ else
     printf 'Invalid selection.\n' >&2
   done
   [[ -n "$selected_model" ]] || exit 130
+fi
+
+if [[ "$selected_model" == "$clear_sentinel" ]]; then
+  rm -f "$subagent_model_file"
+  if ((${#args[@]} > 0)); then
+    exec "$runner" "${args[@]}"
+  else
+    exec "$runner"
+  fi
 fi
 
 valid_selection=0

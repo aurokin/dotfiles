@@ -203,6 +203,30 @@ test_missing_profile_bootstraps_through_runner() {
   [[ "$(<"$profile/subagent-model")" == 'claude-anthropic-opus-4.8' ]] || fail 'bootstrap preference was not persisted'
 }
 
+test_clear_sticky_entry_removes_preference() {
+  local profile="$tmp_root/clear-sticky" capture="$tmp_root/clear-sticky-fzf"
+  standard_settings "$profile"
+  printf '%s\n' 'claude-kimi-k3' > "$profile/subagent-model"
+  chmod 600 "$profile/subagent-model"
+  local output rows
+  output="$(FZF_SELECT='Clear sticky' FZF_CAPTURE="$capture" run_menu "$profile" --continue)"
+  rows="$(<"$capture")"
+  assert_contains "$rows" $'Clear sticky subagent model  [Kimi / K3]\t[clear-sticky]' 'clear sticky row'
+  assert_contains "$output" 'RUNNER_SUBAGENT=<unset>' 'clear left subagent environment unset'
+  assert_contains "$output" 'RUNNER_ARGS=<--continue>' 'clear launched without forced model'
+  assert_not_contains "$output" '--model' 'clear appended a model argument'
+  [[ ! -e "$profile/subagent-model" ]] || fail 'clear did not remove sticky preference'
+}
+
+test_no_clear_entry_without_sticky() {
+  local profile="$tmp_root/no-clear" capture="$tmp_root/no-clear-fzf"
+  standard_settings "$profile"
+  FZF_SELECT='Kimi / K3' FZF_CAPTURE="$capture" run_menu "$profile" >/dev/null
+  local rows
+  rows="$(<"$capture")"
+  assert_not_contains "$rows" 'Clear sticky subagent model' 'clear entry offered without sticky file'
+}
+
 test_help_is_local_and_does_not_launch() {
   local profile="$tmp_root/help" log="$tmp_root/help-runner"
   standard_settings "$profile"
@@ -219,6 +243,8 @@ run_test 'explicit model bypass' test_explicit_model_bypasses_menu
 run_test 'cancel launches nothing' test_cancel_launches_nothing
 run_test 'numbered fallback' test_numbered_fallback
 run_test 'missing profile bootstrap' test_missing_profile_bootstraps_through_runner
+run_test 'clear sticky entry' test_clear_sticky_entry_removes_preference
+run_test 'no clear entry without sticky' test_no_clear_entry_without_sticky
 run_test 'local help' test_help_is_local_and_does_not_launch
 
 printf 'All %d Super Claude menu tests passed.\n' "$pass_count"
