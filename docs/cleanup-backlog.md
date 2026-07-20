@@ -2,6 +2,24 @@
 
 Findings from a repo review (2026-07-19), updated as items resolve.
 
+## Open follow-ups
+
+- **Notify a Hermes agent** (they manage their own docs) that these
+  `~/.hermes/internal/` maps look stale after the super-claude
+  extraction: `workspace-repo-index.md`, `pending-setup.md`,
+  `service-index.md`, and `coding-agent-provider-map.md` still say the
+  repo lives at `~/workspace/super-claude` with no remote — it moved to
+  `~/code/super-claude` and has a private remote
+  (github.com/aurokin/super-claude); the client scripts also moved out
+  of dotfiles into its `client/`.
+- **tprompt / diffwarden**: see "On-host configs missing from dotfiles"
+  below — still deferred, extraction work is now finished so they're
+  next up for a revisit.
+- **pass-cli session staleness**: 5 of 7 hosts had silently expired
+  sessions within days of bootstrap (2026-07-19 rollout). If it
+  persists, consider auto-running `secrets-bootstrap` on session
+  failure in the launcher or `secrets.zsh`.
+
 Done so far: deleted `fonts/` (install the Nerd Font via brew cask /
 nerd-fonts release instead); untracked + gitignored karabiner
 `automatic_backups/` (Karabiner has no setting to disable writing them);
