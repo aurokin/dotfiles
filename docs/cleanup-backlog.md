@@ -24,12 +24,14 @@ The tell that a script is a project: it has its own tests in `tests/`.
    `git-new-worktree.sh`, `git-worktree-paths.sh`, `wtct.zsh`, `wtrt.zsh`,
    plus `docs/git-worktrees.md` and three test files. Largest and
    cleanest-bounded — extract first.
-2. **twigsmux** — IN PROGRESS. Extracted as a TPM plugin to
-   `~/code/twigsmux` (github.com/aurokin/twigsmux, private until done);
-   design in docs/twigsmux-extraction.md. Dotfiles copies stay canonical
-   until cutover (the agentscan pattern): develop there, then flip
-   `.tmux.conf` to `set -g @plugin 'aurokin/twigsmux'` + one .zshrc
-   source line and delete the script copies here.
+2. **twigsmux** — SOAKING ON KOOPA. Extracted as a TPM plugin
+   (github.com/aurokin/twigsmux, private; dev copy `~/code/twigsmux`);
+   full audit + runtime gate passed; koopa flipped to the plugin
+   (SSH-form @plugin line while private). Script copies stay here until
+   soak completes. Remaining: soak 3-7 days -> fleet rollout (verify
+   linuxbrew wt on one Linux host) -> tag v1, pin @plugin, switch the
+   line to 'aurokin/twigsmux', make repo public, copy design doc into
+   the plugin's docs/, then delete the script/test copies here.
 3. **super-claude** + `super-claude-menu` (389 lines, two test files).
    Client for a network service with its own state dir (`~/.super-claude`);
    actively evolving, so separate versioning pays off.

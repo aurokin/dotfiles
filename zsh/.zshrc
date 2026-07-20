@@ -102,7 +102,6 @@ alias wtr="wt remove"
 alias gcb="git checkout \$(git branch | fzf)"
 alias lg="lazygit"
 alias rr="rm -rf"
-alias twm="~/.zshrc.d/scripts/twigsmux.sh"
 alias agents="$HOME/.zshrc.d/scripts/agentscan.sh"
 alias pscripts="$HOME/.zshrc.d/scripts/list-package-json-scripts.sh"
 alias comfyui="$HOME/.zshrc.d/scripts/comfyui.sh"
@@ -157,12 +156,9 @@ if [[ -f "$HOME/.zshrc.d/worktrunk.zsh" ]]; then
     source "$HOME/.zshrc.d/worktrunk.zsh"
 fi
 
-if [[ -f "$HOME/.zshrc.d/scripts/wtct.zsh" ]]; then
-    source "$HOME/.zshrc.d/scripts/wtct.zsh"
-fi
-
-if [[ -f "$HOME/.zshrc.d/scripts/wtrt.zsh" ]]; then
-    source "$HOME/.zshrc.d/scripts/wtrt.zsh"
+# twigsmux plugin shell integration (wtct / wtrt / twm); keybinds come from TPM.
+if [[ -f "$HOME/.tmux/plugins/twigsmux/shell/init.zsh" ]]; then
+    source "$HOME/.tmux/plugins/twigsmux/shell/init.zsh"
 fi
 
 # Mise
