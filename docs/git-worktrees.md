@@ -227,6 +227,7 @@ Recommended trial aliases:
 - `wts='wt switch'`
 - `wtc='wt switch --create --base=@'`
 - `wtr='wt remove'`
+- `wtct`, `wtrt`, and the `prefix+t`/`prefix+y` pickers below are provided by the [twigsmux](https://github.com/aurokin/twigsmux) TPM plugin, not this repo.
 - `wtrt <worktree>` removes the worktree from the current repo context with `wt remove --force-delete`, then kills exactly one matching non-current tmux session when found
 - `wtrt --cwd <repo-path> <worktree>` removes the worktree from an explicit repo context, which lets tmux picker removals work even when launched from another repo's session
 - `wtrt --session <tmux-session> <worktree>` scopes tmux cleanup to that exact session instead of suffix-matching every session
