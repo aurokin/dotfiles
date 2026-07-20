@@ -1,0 +1,14 @@
+# tprompt config (stowed from ~/.dotfiles/tprompt).
+#
+# prompts_dir is left unset: the default (~/.config/tprompt/prompts) is the
+# stow symlink into this package's prompts/, so authored prompts (`tprompt
+# new`) land in the public dotfiles repo. Requires tprompt > v0.6.0 (symlinked
+# source roots; DECISIONS §36) — do not activate this package on older
+# releases.
+#
+# Private/work prompts are an overlay source: optional-when-missing, so this
+# config is safe on hosts that don't carry dotfiles-private.
+additional_prompts_dirs = ["~/.dotfiles-private/tprompt/prompts"]
+
+default_mode = "paste"
+default_enter = false

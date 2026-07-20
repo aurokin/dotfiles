@@ -4,11 +4,21 @@ Findings from a repo review (2026-07-19), updated as items resolve.
 
 ## Open follow-ups
 
-- **tprompt prompts move**: blocked on Linear AUR-702 (public/private
-  prompt-source split — mechanics exist via subdir recursion +
-  additional_prompts_dirs; issue asks to bless/document the workflow
-  and name both paths in collision errors). Move the prompts once it
-  lands.
+- **tprompt prompts move**: STAGED (2026-07-20). AUR-702 shipped on
+  tprompt HEAD (`dc0b87d`: composable sources, all-paths collision
+  errors, symlinked source roots, doctor per-source counts) — release
+  pending. The `tprompt/` stow package here holds config.toml + all
+  three prompts (classified public); `~/.dotfiles-private/tprompt/prompts/`
+  is the empty private overlay. Deliberately NOT in link.sh yet; live
+  config untouched. Activate once the release lands:
+  1. mise: tprompt is `latest` — fresh release may need a temporary
+     exact pin (minimum_release_age hides it); update fleet.
+  2. Verify `tprompt --version` > 0.6.0, then on koopa: delete the real
+     files in `~/.config/tprompt/prompts/`, remove the empty dir, add
+     `tprompt` to link.sh's stow line, run ./link.sh.
+  3. `tprompt doctor` (expect two sources; private may warn missing on
+     some hosts — that's fine), spot-check the TUI keys.
+  4. Push; on each fleet host: pull + link.sh + doctor.
 - **pass-cli session staleness**: 5 of 7 hosts had silently expired
   sessions within days of bootstrap (2026-07-19 rollout). If it
   persists, consider auto-running `secrets-bootstrap` on session
