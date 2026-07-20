@@ -24,9 +24,10 @@ The tell that a script is a project: it has its own tests in `tests/`.
    github.com/aurokin/trunkyard (private; dev copy `~/code/trunkyard`):
    one CLI (`trunkyard status|pull|new`) wrapping the canonical
    `git-workspace.sh` / `git-new-worktree.sh` engines, mise-distributed
-   via a tarball release asset (`scripts/release.sh`). Audit running.
-   Remaining: audit -> flip koopa aliases (gwss/gwp/gwt) to the dev
-   copy -> soak -> release v0.1.0 + mise entry -> fleet -> public ->
+   via a tarball release asset (`scripts/release.sh`). Two audit rounds
+   passed (symlink fix + docs rewrite in round one; release ergonomics
+   in round two); koopa aliases flipped to the dev copy — SOAKING.
+   Remaining: soak -> release v0.1.0 + mise entry -> fleet -> public ->
    delete the three scripts + integration test + docs/git-worktrees.md
    here. (wtct/wtrt already left with twigsmux.)
 2. **twigsmux** — DONE. Extracted to github.com/aurokin/twigsmux
