@@ -139,6 +139,8 @@ if [[ -f "$HOST_FILE" ]]; then
     source "$HOST_FILE"
 fi
 
+# Legacy: fleet hosts no longer have keys.zsh (P2 scoped-secrets migration),
+# but non-fleet machines (work) still use this pattern — keep loading if present.
 if [[ -f "$KEYS_FILE" ]]; then
     source "$KEYS_FILE"
 fi
