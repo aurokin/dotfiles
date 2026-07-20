@@ -4,14 +4,6 @@ Findings from a repo review (2026-07-19), updated as items resolve.
 
 ## Open follow-ups
 
-- **Notify a Hermes agent** (they manage their own docs) that these
-  `~/.hermes/internal/` maps look stale after the super-claude
-  extraction: `workspace-repo-index.md`, `pending-setup.md`,
-  `service-index.md`, and `coding-agent-provider-map.md` still say the
-  repo lives at `~/workspace/super-claude` with no remote — it moved to
-  `~/code/super-claude` and has a private remote
-  (github.com/aurokin/super-claude); the client scripts also moved out
-  of dotfiles into its `client/`.
 - **tprompt prompts move**: blocked on Linear AUR-702 (public/private
   prompt-source split — mechanics exist via subdir recursion +
   additional_prompts_dirs; issue asks to bless/document the workflow
