@@ -25,10 +25,7 @@
 - zoxide
 
 ### Git Worktrees
-- `gwss <path>` shows workspace git status across repos under a parent directory.
-- `gwp <path>` pulls repos discovered by `gwss`.
-- `gwt <branch>` creates a centralized worktree at `~/worktrees/<project>/<branch>`, using `^` in paths for branch names that include `/`.
-- Full repo-specific worktree documentation: [docs/git-worktrees.md](/Users/auro/.dotfiles/docs/git-worktrees.md)
+- `gwss` / `gwp` / `gwt` alias [trunkyard](https://github.com/aurokin/trunkyard) `status` / `pull` / `new` (mise-installed).
 
 ### References
 - Neovim Config: https://github.com/nvim-lua/kickstart.nvim

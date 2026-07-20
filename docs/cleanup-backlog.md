@@ -20,16 +20,13 @@ Pattern to follow: `agentscan` / `tprompt` / `diffwarden` — own repo at
 `github:aurokin/<tool>`, installed fleet-wide via the mise manifest here.
 The tell that a script is a project: it has its own tests in `tests/`.
 
-1. **Git worktree suite → trunkyard** — IN PROGRESS. Extracted to
-   github.com/aurokin/trunkyard (private; dev copy `~/code/trunkyard`):
-   one CLI (`trunkyard status|pull|new`) wrapping the canonical
-   `git-workspace.sh` / `git-new-worktree.sh` engines, mise-distributed
-   via a tarball release asset (`scripts/release.sh`). Two audit rounds
-   passed (symlink fix + docs rewrite in round one; release ergonomics
-   in round two); koopa aliases flipped to the dev copy — SOAKING.
-   Remaining: soak -> release v0.1.0 + mise entry -> fleet -> public ->
-   delete the three scripts + integration test + docs/git-worktrees.md
-   here. (wtct/wtrt already left with twigsmux.)
+1. **Git worktree suite → trunkyard** — DONE. Extracted to
+   github.com/aurokin/trunkyard (public, v0.1.0; dev copy
+   `~/code/trunkyard`): one CLI (`trunkyard status|pull|new`),
+   mise-installed via a pinned tarball release (bump the pin in
+   mise config when cutting a release). Two audit rounds + soak
+   passed; scripts, integration test, and docs/git-worktrees.md
+   deleted from this repo. (wtct/wtrt live in twigsmux.)
 2. **twigsmux** — DONE. Extracted to github.com/aurokin/twigsmux
    (public, tagged v1, pinned in .tmux.conf; dev copy `~/code/twigsmux`).
    Audit + runtime gate + koopa soak passed; script/test copies deleted

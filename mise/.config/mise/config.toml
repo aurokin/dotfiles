@@ -16,6 +16,9 @@ gcloud = "latest"
 awscli = "latest"
 "github:aurokin/clip-remote-sync" = { version = "latest", asset_pattern = "crs", bin = "crs" }
 "github:aurokin/agentscan" = "latest"
+# Pinned: mise's minimum_release_age default hides fresh releases from "latest";
+# bump the pin when cutting a new trunkyard release.
+"github:aurokin/trunkyard" = { version = "v0.1.0", asset_pattern = "trunkyard.tar.gz", bin_path = "trunkyard/bin" }
 "github:aurokin/tprompt" = "latest"
 "github:steipete/goplaces" = "latest"
 "github:steipete/gogcli" = { version = "latest", bin = "gog" }
