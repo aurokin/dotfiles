@@ -4,21 +4,15 @@ Findings from a repo review (2026-07-19), updated as items resolve.
 
 ## Open follow-ups
 
-- **tprompt prompts move**: STAGED (2026-07-20). AUR-702 shipped on
-  tprompt HEAD (`dc0b87d`: composable sources, all-paths collision
-  errors, symlinked source roots, doctor per-source counts) — release
-  pending. The `tprompt/` stow package here holds config.toml + all
-  three prompts (classified public); `~/.dotfiles-private/tprompt/prompts/`
-  is the empty private overlay. Deliberately NOT in link.sh yet; live
-  config untouched. Activate once the release lands:
-  1. mise: tprompt is `latest` — fresh release may need a temporary
-     exact pin (minimum_release_age hides it); update fleet.
-  2. Verify `tprompt --version` > 0.6.0, then on koopa: delete the real
-     files in `~/.config/tprompt/prompts/`, remove the empty dir, add
-     `tprompt` to link.sh's stow line, run ./link.sh.
-  3. `tprompt doctor` (expect two sources; private may warn missing on
-     some hosts — that's fine), spot-check the TUI keys.
-  4. Push; on each fleet host: pull + link.sh + doctor.
+- **tprompt prompts move**: DONE (2026-07-20, tprompt v0.7.0 / AUR-702).
+  `tprompt/` stow package (config.toml + 3 public prompts) active
+  fleet-wide; `~/.dotfiles-private/tprompt/prompts/` is the (empty)
+  private overlay source. mise pins v0.7.0 (minimum_release_age).
+  Gotcha for dev sessions: the tmux popup resolves tprompt via
+  resolve-bin.sh, which prefers dogfood copies in ~/.cargo/bin and
+  ~/.local/bin over the mise shim — run `make undogfood` in
+  ~/code/tprompt when done, or the popup pins to the last dev build
+  (a stale v0.5.1 copy shadowed v0.7.0 on koopa at activation).
 - **pass-cli session staleness**: 5 of 7 hosts had silently expired
   sessions within days of bootstrap (2026-07-19 rollout). If it
   persists, consider auto-running `secrets-bootstrap` on session
