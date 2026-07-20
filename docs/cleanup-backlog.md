@@ -32,13 +32,13 @@ The tell that a script is a project: it has its own tests in `tests/`.
    Audit + runtime gate + koopa soak passed; script/test copies deleted
    from this repo. Note: `tmux-popup.sh` stays here (agentscan/tprompt
    binds use it) and has a byte-identical vendored twin in the plugin.
-3. **super-claude** + `super-claude-menu` (two test files). Decision
-   (2026-07-19, research + owner call): never public — the client is
-   inseparable from a private gateway. Hold here until the current dev
-   sprint cools (~2 weeks), then fold the scripts + tests into the
-   private super-claude workspace repo (which should get a remote
-   first); dotfiles keep only the aliases. `lcc.sh` stays here (env-var
-   coupling only). Full decision doc lives in that repo's `docs/`.
+3. **super-claude** — DONE. Never public (client is inseparable from a
+   private gateway); folded into github.com/aurokin/super-claude
+   (private, `~/code/super-claude`, `client/`) alongside the gateway
+   deployment. Audit + live gateway checks + koopa soak passed; scripts
+   and tests deleted from this repo, aliases repoint to the clone.
+   `lcc.sh` stays here (env-var coupling only). Decision doc in that
+   repo's `docs/`.
 
 ## Doesn't belong in dotfiles
 
