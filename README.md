@@ -6,7 +6,7 @@
 - Terminal: Alacritty
 - Text Editor: Neovim
 - Theme: Tokyo Night
-- Tmux Session Management: twigsmux (.zshrc.d/scripts/twigsmux.sh && .tmux.conf && neovim config)
+- Tmux Session Management: [twigsmux](https://github.com/aurokin/twigsmux) (TPM plugin)
 
 ### Utilities
 - bat
