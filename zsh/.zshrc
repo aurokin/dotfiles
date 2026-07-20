@@ -170,7 +170,10 @@ fi
 if command -v zoxide >/dev/null 2>&1; then
     eval "$(zoxide init zsh)"
 
-    if command -v zdr >/dev/null 2>&1; then
+    # whence -p, not command -v: secrets.zsh defines a zdr wrapper FUNCTION on
+    # every host, so command -v passes even where the real binary is absent
+    # (verified: "secrets: zdr executable not found" at login on luma).
+    if whence -p zdr >/dev/null 2>&1; then
         eval "$(zdr init zsh)"
     fi
 fi
