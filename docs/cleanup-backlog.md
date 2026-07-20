@@ -38,12 +38,15 @@ The tell that a script is a project: it has its own tests in `tests/`.
 
 ## Doesn't belong in dotfiles
 
-- ComfyUI scripts (`dot_scripts/comfyui_install.sh`, `scripts/comfyui.sh`,
-  `scripts/comfyui-install.sh`) and `dot_scripts/portless_service_install.sh`
-  — app/service deployment, not environment config. Move next to infra
-  docs or a machine-provisioning repo.
+- ComfyUI scripts — DELETED (one-time setup, recreatable; decided
+  2026-07-19).
+- `dot_scripts/portless_service_install.sh` — STAYS (dotfiles is the one
+  folder on every host). It's the only service-install script, so no
+  subdirectory reorg yet; revisit if a second one appears.
 
 ## On-host configs missing from dotfiles
+
+(Deferred as a group: revisit once the extraction work is finished.)
 
 - `~/.config/tprompt/prompts/` — blocked on a tprompt feature: need a
   lever to split which prompts sync publicly (this repo) vs privately

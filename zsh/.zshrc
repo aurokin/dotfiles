@@ -104,8 +104,6 @@ alias lg="lazygit"
 alias rr="rm -rf"
 alias agents="$HOME/.zshrc.d/scripts/agentscan.sh"
 alias pscripts="$HOME/.zshrc.d/scripts/list-package-json-scripts.sh"
-alias comfyui="$HOME/.zshrc.d/scripts/comfyui.sh"
-alias comfyui-install="$HOME/.zshrc.d/scripts/comfyui-install.sh"
 # macOS only
 alias yawn="pmset displaysleepnow"
 alias oyawn="oled-yawn sleep AW3225QF --yes"
