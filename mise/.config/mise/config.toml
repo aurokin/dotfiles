@@ -19,7 +19,9 @@ awscli = "latest"
 # Pinned: mise's minimum_release_age default hides fresh releases from "latest";
 # bump the pin when cutting a new trunkyard release.
 "github:aurokin/trunkyard" = { version = "v0.1.0", asset_pattern = "trunkyard.tar.gz", bin_path = "trunkyard/bin" }
-"github:aurokin/tprompt" = "latest"
+# Pinned (same minimum_release_age reason as trunkyard); v0.7.0 carries the
+# AUR-702 composable-sources contract the tprompt stow package requires.
+"github:aurokin/tprompt" = "v0.7.0"
 "github:steipete/goplaces" = "latest"
 "github:steipete/gogcli" = { version = "latest", bin = "gog" }
 "github:steipete/imsg" = { version = "latest", os = ["macos"] }
