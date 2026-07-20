@@ -12,9 +12,11 @@ Findings from a repo review (2026-07-19), updated as items resolve.
   `~/code/super-claude` and has a private remote
   (github.com/aurokin/super-claude); the client scripts also moved out
   of dotfiles into its `client/`.
-- **tprompt / diffwarden**: see "On-host configs missing from dotfiles"
-  below — still deferred, extraction work is now finished so they're
-  next up for a revisit.
+- **tprompt prompts move**: blocked on Linear AUR-702 (public/private
+  prompt-source split — mechanics exist via subdir recursion +
+  additional_prompts_dirs; issue asks to bless/document the workflow
+  and name both paths in collision errors). Move the prompts once it
+  lands.
 - **pass-cli session staleness**: 5 of 7 hosts had silently expired
   sessions within days of bootstrap (2026-07-19 rollout). If it
   persists, consider auto-running `secrets-bootstrap` on session
@@ -70,9 +72,10 @@ The tell that a script is a project: it has its own tests in `tests/`.
 
 (Deferred as a group: revisit once the extraction work is finished.)
 
-- `~/.config/tprompt/prompts/` — blocked on a tprompt feature: need a
-  lever to split which prompts sync publicly (this repo) vs privately
-  (`~/.dotfiles-private` / work). File the feature request before moving.
-- `~/.config/diffwarden/diffwarden.config.json` — deferred: it's a fluid,
-  living config (skills toggled on/off on the live setup), so syncing a
-  snapshot fights the workflow. Revisit if it settles.
+- `~/.config/tprompt/prompts/` — feature request filed (Linear AUR-702);
+  move the prompts once the split workflow lands.
+- `~/.config/diffwarden/diffwarden.config.json` — HANDLED (2026-07-19):
+  fieldmap + intent added to dotfiles-private (portable keys sync;
+  reviewer catalog stays host-owned because entries embed per-host
+  enabled toggles and droid machineId). Native overlay split requested
+  as Linear AUR-703; revisit the fieldmap when it lands.
