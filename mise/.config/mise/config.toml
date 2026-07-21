@@ -37,6 +37,10 @@ awscli = "latest"
 "npm:@github/copilot" = "latest"
 "npm:@googleworkspace/cli" = "latest"
 "npm:skills" = "latest"
+# Pinned (same minimum_release_age reason as trunkyard); bump the pin when
+# cutting a new diffwarden release. koopa opts out via MISE_DISABLE_TOOLS
+# (hosts/koopa.env.zsh) to keep its pnpm-linked dev build first on PATH.
+"npm:diffwarden" = "0.5.0"
 "npm:@earendil-works/pi-coding-agent" = "latest"
 "npm:agent-browser" = "latest"
 "npm:browse" = "latest"
