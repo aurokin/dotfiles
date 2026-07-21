@@ -70,8 +70,12 @@ The tell that a script is a project: it has its own tests in `tests/`.
 
 - `~/.config/tprompt/prompts/` — feature request filed (Linear AUR-702);
   move the prompts once the split workflow lands.
-- `~/.config/diffwarden/diffwarden.config.json` — HANDLED (2026-07-19):
-  fieldmap + intent added to dotfiles-private (portable keys sync;
-  reviewer catalog stays host-owned because entries embed per-host
-  enabled toggles and droid machineId). Native overlay split requested
-  as Linear AUR-703; revisit the fieldmap when it lands.
+- `~/.config/diffwarden/diffwarden.config.json` — DONE (2026-07-21,
+  diffwarden v0.5.0 / AUR-703): base+overlay split fleet-wide. The base
+  config is fully portable (whole reviewer catalog, droid machineId
+  stripped) and synced via the dotfiles-private fieldmap; each host's
+  `diffwarden.config.local.json` overlay carries only droid-sdk's
+  machineId (plus any future per-host enabled overrides) and is never
+  synced. Identical base sha256 on all 6 hosts is the drift detector
+  (`diffwarden doctor` shows overlay identity). haste was unreachable
+  (dual-boot) — apply the same split there when it's next up.
