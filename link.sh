@@ -26,6 +26,9 @@ fi
 # in $HOME, adopt once to convert it to a stow-managed symlink, e.g.:
 #   stow -R --adopt <package>
 # Then run ./link.sh again.
+# Deleting a file from a package needs no extra cleanup: `stow -R` unstows by
+# scanning the target tree for links pointing into the package, so links to
+# files no longer in it are removed too (verified, GNU Stow 2.4.1).
 stow -R --no-folding zsh
 # codex: ~/.codex holds live state (auth, sessions), so link files, not the dir.
 stow -R --no-folding codex
