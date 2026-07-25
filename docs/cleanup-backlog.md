@@ -53,8 +53,8 @@ The tell that a script is a project: it has its own tests in `tests/`.
    (private, `~/code/super-claude`, `client/`) alongside the gateway
    deployment. Audit + live gateway checks + koopa soak passed; scripts
    and tests deleted from this repo, aliases repoint to the clone.
-   `lcc.sh` stays here (env-var coupling only). Decision doc in that
-   repo's `docs/`.
+   Decision doc in that repo's `docs/`. (The `lscc` resume alias and
+   `lcc.sh` were later deleted outright — see below.)
 
 ## Doesn't belong in dotfiles
 
@@ -63,6 +63,10 @@ The tell that a script is a project: it has its own tests in `tests/`.
 - `dot_scripts/portless_service_install.sh` — STAYS (dotfiles is the one
   folder on every host). It's the only service-install script, so no
   subdirectory reorg yet; revisit if a second one appears.
+- Session-resume launchers (`lcc.sh`, `lgpt.sh` and the `lcc`/`lccr`/
+  `lscc`/`lgpt` aliases) — DELETED (2026-07-24). They reconstructed the
+  last session ID from history files to pass to `--resume`; both clients
+  now have an in-session `/resume` picker, so the guesswork is obsolete.
 
 ## On-host configs missing from dotfiles
 
