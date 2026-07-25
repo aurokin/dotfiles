@@ -1,6 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Launcher alias resolved in the interactive zsh below; lvcc sets this to `vcc`.
+lcc_alias="${LCC_ALIAS:-cc}"
+
+# It is interpolated into the zsh source below, so keep it a bare command name.
+case "$lcc_alias" in
+  *[!A-Za-z0-9_-]*|"")
+    echo "lcc: LCC_ALIAS must be a plain command name, got '$lcc_alias'." >&2
+    exit 2
+    ;;
+esac
+
+if [[ "$lcc_alias" != "cc" ]] && ! command -v zsh >/dev/null 2>&1; then
+  echo "lcc: LCC_ALIAS=$lcc_alias needs zsh (the alias is defined in .zshrc)." >&2
+  exit 127
+fi
+
 run_resume() {
   if [[ -n "${LCC_RUNNER_PATH:-}" ]]; then
     local runner_args=(--resume "$@")
@@ -16,10 +32,10 @@ run_resume() {
   # Prefer interactive zsh so .zshrc loads aliases/functions (including `cc`).
   if command -v zsh >/dev/null 2>&1; then
     if [[ "${LCC_FORK_SESSION:-0}" == "1" ]]; then
-      exec zsh -ic 'builtin cd -- "$1" && shift && cc "$@"' lcc "$PWD" --fork-session --resume "$@"
+      exec zsh -ic "builtin cd -- \"\$1\" && shift && $lcc_alias \"\$@\"" lcc "$PWD" --fork-session --resume "$@"
     fi
 
-    exec zsh -ic 'builtin cd -- "$1" && shift && cc "$@"' lcc "$PWD" --resume "$@"
+    exec zsh -ic "builtin cd -- \"\$1\" && shift && $lcc_alias \"\$@\"" lcc "$PWD" --resume "$@"
   fi
 
   # Fallback for environments without zsh.
@@ -131,6 +147,8 @@ Behavior:
 Environment:
   LCC_FORK_SESSION=1  Add --fork-session when resuming/continuing.
                       Used by the lccr alias for Claude Code recovery.
+  LCC_ALIAS           Launcher alias to resume with; defaults to cc.
+                      Used by the lvcc alias for vanilla (control) mode.
   LCC_RUNNER_PATH     Optional launcher path instead of the native cc alias.
   LCC_DANGEROUS=1     Add --dangerously-skip-permissions to LCC_RUNNER_PATH.
   CLAUDE_HOME         Session/history root; defaults to ~/.claude.
@@ -165,10 +183,10 @@ fi
 
 if command -v zsh >/dev/null 2>&1; then
   if [[ "${LCC_FORK_SESSION:-0}" == "1" ]]; then
-    exec zsh -ic 'builtin cd -- "$1" && shift && cc "$@"' lcc "$PWD" --fork-session --continue
+    exec zsh -ic "builtin cd -- \"\$1\" && shift && $lcc_alias \"\$@\"" lcc "$PWD" --fork-session --continue
   fi
 
-  exec zsh -ic 'builtin cd -- "$1" && shift && cc "$@"' lcc "$PWD" --continue
+  exec zsh -ic "builtin cd -- \"\$1\" && shift && $lcc_alias \"\$@\"" lcc "$PWD" --continue
 fi
 
 if command -v claude >/dev/null 2>&1; then

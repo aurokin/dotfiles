@@ -1,10 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Launcher alias resolved in the interactive zsh below; lvgpt sets this to `vgpt`.
+lgpt_alias="${LGPT_ALIAS:-gpt}"
+
+# It is interpolated into the zsh source below, so keep it a bare command name.
+case "$lgpt_alias" in
+  *[!A-Za-z0-9_-]*|"")
+    echo "lgpt: LGPT_ALIAS must be a plain command name, got '$lgpt_alias'." >&2
+    exit 2
+    ;;
+esac
+
+if [[ "$lgpt_alias" != "gpt" ]] && ! command -v zsh >/dev/null 2>&1; then
+  echo "lgpt: LGPT_ALIAS=$lgpt_alias needs zsh (the alias is defined in .zshrc)." >&2
+  exit 127
+fi
+
 run_resume() {
   # Prefer interactive zsh so .zshrc loads aliases/functions (including `gpt`).
   if command -v zsh >/dev/null 2>&1; then
-    exec zsh -ic 'builtin cd -- "$1" && shift && gpt resume "$@"' lgpt "$PWD" "$@"
+    exec zsh -ic "builtin cd -- \"\$1\" && shift && $lgpt_alias resume \"\$@\"" lgpt "$PWD" "$@"
   fi
 
   # Fallback for environments without zsh.
@@ -151,6 +167,10 @@ Behavior:
   - If history has no cwd-matching ID, uses the newest Codex session for the
     current working directory.
   - Falls back to `gpt resume --last` if no ID can be resolved.
+
+Environment:
+  LGPT_ALIAS          Launcher alias to resume with; defaults to gpt.
+                      Used by the lvgpt alias for vanilla (control) mode.
 EOF
   exit 0
 fi

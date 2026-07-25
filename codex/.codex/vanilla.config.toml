@@ -1,0 +1,16 @@
+# Codex vanilla mode: overlay on ~/.codex/config.toml, loaded by
+# `codex --profile vanilla`. Current Codex resolves a profile to
+# <CODEX_HOME>/<profile>.config.toml; the older `[profiles.vanilla]` table in
+# config.toml is rejected outright ("legacy `profile = ...` is no longer
+# supported; use `--profile vanilla` with `vanilla.config.toml` instead").
+# Verified: with this file the two skills are absent from `codex debug
+# prompt-input`, without it they are present. It overlays rather than replaces
+# config.toml — sandbox/approval/auth settings there still apply.
+
+[[skills.config]]
+name = "orchestrate"
+enabled = false
+
+[[skills.config]]
+name = "consult"
+enabled = false

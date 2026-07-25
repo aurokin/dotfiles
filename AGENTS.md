@@ -3,9 +3,10 @@
 This file defines repository-specific instructions for automation and agents.
 
 ## Structure
-- Top-level stow packages: `agentscan`, `alacritty`, `bat`, `git`, `ghostty`, `hammerspoon`, `idea`, `karabiner`, `lazygit`, `mise`, `nvim`, `starship`, `tmux`, `wezterm`, `worktrunk`, `zsh`.
-- Packages that map to `~/.config`: `agentscan/.config`, `alacritty/.config`, `bat/.config`, `ghostty/.config`, `karabiner/.config`, `lazygit/.config`, `mise/.config`, `nvim/.config`, `starship/.config`, `wezterm/.config`, `worktrunk/.config`.
+- Top-level stow packages: `agent-modes`, `agentscan`, `alacritty`, `bat`, `codex`, `git`, `ghostty`, `hammerspoon`, `idea`, `karabiner`, `lazygit`, `mise`, `nvim`, `starship`, `tmux`, `wezterm`, `worktrunk`, `zsh`.
+- Packages that map to `~/.config`: `agent-modes/.config`, `agentscan/.config`, `alacritty/.config`, `bat/.config`, `ghostty/.config`, `karabiner/.config`, `lazygit/.config`, `mise/.config`, `nvim/.config`, `starship/.config`, `wezterm/.config`, `worktrunk/.config`.
 - Other key mappings: `git/.gitconfig`, `hammerspoon/.hammerspoon`, `idea/.ideavimrc`, `tmux/.tmux.conf`, `zsh/.zshrc`.
+- `codex/` stows single files into `~/.codex` (live agent state lives there, so it is stowed `--no-folding`); it holds launch-time overlays like `vanilla.config.toml`, not the main `config.toml`.
 - `dot_scripts/` holds setup and install scripts (brew/apt/osx/linux/etc.) and is not stowed.
 
 ## Conventions
@@ -14,6 +15,7 @@ This file defines repository-specific instructions for automation and agents.
 - `link.sh` also rebuilds the bat cache; keep that behavior intact unless explicitly changed.
 - Ghostty config lives in `ghostty/.config/ghostty/config`. On macOS, Ghostty prefers `~/Library/Application Support/com.mitchellh.ghostty/config`, so this repo stows a small shim there that loads the XDG config.
 - Keep shell scripts called from zsh aliases in `zsh/.zshrc.d/scripts`.
+- Vanilla agent modes (`vcc`/`lvcc`, `vgpt`/`lvgpt`) are launch-time overlays only: `agent-modes/.config/agent-modes/claude-vanilla.json` and `codex/.codex/vanilla.config.toml`. Never switch modes by installing/removing skills.
 - Zsh config lives in `zsh/.zshrc`; aliases should reference scripts under `~/.zshrc.d/scripts` (not `~/.scripts`).
 - Per-machine zsh config: `zsh/.zshrc.d/hosts/<short-hostname>.zsh`, auto-sourced by `.zshrc` against the domain-stripped `uname -n` (e.g. `koopa`). Use for host-specific PATH/env (tools installed outside mise); follow the guarded-`PATH` idiom in existing host files.
 - Env that must also reach non-interactive shells (`ssh <host> <cmd>` reads only `.zshenv`): `zsh/.zshrc.d/hosts/<short-hostname>.env.zsh`, auto-sourced by `zsh/.zshenv`; keep it env/PATH-only and fast.

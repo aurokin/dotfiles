@@ -79,6 +79,32 @@ alias lscc="CLAUDE_HOME=$HOME/.super-claude LCC_RUNNER_PATH=$HOME/code/super-cla
 # Keep zsh/.zshrc.d/scripts/lgpt.sh in sync if this command changes.
 alias gpt="codex --dangerously-bypass-approvals-and-sandbox"
 alias lgpt="$HOME/.zshrc.d/scripts/lgpt.sh"
+# Vanilla (control) modes: same client, auth, history, MCP, hooks and other
+# skills — only the cross-provider orchestrate/consult skills are off for the
+# session. Launch-time overlays, so nothing on disk changes for other sessions.
+vcc() {
+  print -P '%F{cyan}[claude vanilla: orchestrate/consult off]%f'
+  AGENT_MODE=vanilla command claude --dangerously-skip-permissions \
+    --settings "$HOME/.config/agent-modes/claude-vanilla.json" "$@"
+}
+vgpt() {
+  # `codex --profile vanilla` loads <CODEX_HOME>/vanilla.config.toml. A missing
+  # file is not an error there (unlike `claude --settings`): Codex exits 0 with
+  # the skills still enabled, so check first rather than launch a session that
+  # is vanilla in name only.
+  local overlay="${CODEX_HOME:-$HOME/.codex}/vanilla.config.toml"
+  if [[ ! -f "$overlay" ]]; then
+    print -u2 "vgpt: $overlay missing (run ~/.dotfiles/link.sh); refusing to launch augmented."
+    return 1
+  fi
+  print -P '%F{cyan}[codex vanilla: orchestrate/consult off]%f'
+  AGENT_MODE=vanilla command codex --dangerously-bypass-approvals-and-sandbox \
+    --profile vanilla "$@"
+}
+# $HOME is expanded at definition time and left unquoted, matching lcc/lccr/
+# lscc/lgpt above; the fleet's home paths have no whitespace or metacharacters.
+alias lvcc="LCC_ALIAS=vcc $HOME/.zshrc.d/scripts/lcc.sh"
+alias lvgpt="LGPT_ALIAS=vgpt $HOME/.zshrc.d/scripts/lgpt.sh"
 alias golo="gemini --yolo"
 alias colo="copilot --yolo"
 alias oc="opencode"

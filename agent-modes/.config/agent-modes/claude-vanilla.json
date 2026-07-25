@@ -1,0 +1,6 @@
+{
+  "skillOverrides": {
+    "orchestrate": "off",
+    "consult": "off"
+  }
+}

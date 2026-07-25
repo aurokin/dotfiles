@@ -27,7 +27,9 @@ fi
 #   stow -R --adopt <package>
 # Then run ./link.sh again.
 stow -R --no-folding zsh
-stow -R tmux git alacritty ghostty wezterm nvim karabiner lazygit idea bat hammerspoon mise starship worktrunk agentscan tprompt
+# codex: ~/.codex holds live state (auth, sessions), so link files, not the dir.
+stow -R --no-folding codex
+stow -R tmux git alacritty ghostty wezterm nvim karabiner lazygit idea bat hammerspoon mise starship worktrunk agentscan tprompt agent-modes
 
 # Keep this behavior: rebuilding the bat cache is part of linking.
 bat cache --build
