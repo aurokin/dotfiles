@@ -28,7 +28,8 @@ awscli = "latest"
 "go:github.com/xdevplatform/xurl" = "latest"
 
 # Node CLIs
-"npm:opencode-ai" = "latest"
+# OpenCode v2 preview; track the upstream beta channel until v2 becomes stable.
+"npm:opencode-ai" = "beta"
 "npm:@fsouza/prettierd" = "latest"
 "npm:@vue/typescript-plugin" = "latest"
 "npm:typescript-language-server" = "latest"

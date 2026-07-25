@@ -94,7 +94,8 @@ remove_antigravity_path_block "$HOME/.profile"
 echo "Installing/updating Grok Build..."
 curl -fsSL https://x.ai/cli/install.sh | SHELL=/usr/bin/false bash
 
-opencode_postinstall="$HOME/.local/share/mise/installs/npm-opencode-ai/latest/lib/node_modules/opencode-ai/postinstall.mjs"
+opencode_install_dir="$(mise where npm:opencode-ai 2>/dev/null || true)"
+opencode_postinstall="$opencode_install_dir/lib/node_modules/opencode-ai/postinstall.mjs"
 if command -v opencode >/dev/null 2>&1 && ! opencode --version >/dev/null 2>&1 && [[ -f "$opencode_postinstall" ]]; then
   echo "Running opencode-ai postinstall..."
   (cd "$(dirname "$opencode_postinstall")" && node postinstall.mjs)
