@@ -42,7 +42,9 @@ awscli = "latest"
 # cutting a new diffwarden release. koopa opts out via MISE_DISABLE_TOOLS
 # (hosts/koopa.env.zsh) to keep its pnpm-linked dev build first on PATH.
 "npm:diffwarden" = "0.5.0"
-"npm:@earendil-works/pi-coding-agent" = "latest"
+# Pinned (same minimum_release_age reason as trunkyard); ~/code/pi-setup
+# requires ^0.82.0. Drop the pin once "latest" catches up past 0.82.0.
+"npm:@earendil-works/pi-coding-agent" = "0.82.0"
 "npm:agent-browser" = "latest"
 "npm:browse" = "latest"
 "npm:portless" = "latest"
