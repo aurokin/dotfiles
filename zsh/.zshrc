@@ -96,6 +96,7 @@ vgpt() {
     --profile vanilla "$@"
 }
 alias golo="gemini --yolo"
+alias yagy="agy --dangerously-skip-permissions"
 alias colo="copilot --yolo"
 alias oc="opencode"
 alias e="exit"
