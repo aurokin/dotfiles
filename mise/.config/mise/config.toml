@@ -50,6 +50,9 @@ awscli = "latest"
 "npm:portless" = "latest"
 "npm:hunkdiff" = "latest"
 "npm:vercel" = "latest"
+# Linear CLI, for pi only — pi has no MCP, so it drives Linear through a CLI
+# plus a skill. Every other agent uses the official Linear MCP instead.
+"npm:linearis" = "latest"
 
 # Claude Code is managed separately. The current upstream CLI ships native
 # install/update flows (`claude install`, `claude update`) rather than staying
