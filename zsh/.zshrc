@@ -109,11 +109,9 @@ alias golo="gemini --yolo"
 alias yagy="agy --dangerously-skip-permissions"
 alias colo="copilot --yolo"
 alias oc="opencode"
-# pi with the Factory gateway available. The pi-factory-bridge extension is
-# always loaded but returns immediately without FACTORY_API_KEY, so a plain
-# `pi` never registers the provider and its models are absent from /model.
-# This is the only way to turn it on, and it lasts exactly one session.
-alias fpi="with-secret factory -- pi"
+# `fpi` (pi with the Factory gateway) is a function in secrets.zsh, next to the
+# opencode wrapper it is modelled on: an interactive TUI cannot run under
+# `pass-cli run`, so it needs the in-memory resolution both of them do.
 alias e="exit"
 alias ds="directory-sync"
 alias lsl="eza -lg --smart-group"
