@@ -63,6 +63,16 @@ fi
 # re-prepends its own tool dirs ahead of these on every cd.
 export PATH="$HOME/.bin:$HOME/.local/bin:$PATH"
 
+# Node caches compiled bytecode here instead of recompiling every module on
+# every start. Measured on pi: 569ms -> 528ms. It helps any Node CLI, and the
+# more modules the tool loads the more it helps. The first run after a version
+# change pays the compile cost once to repopulate.
+#
+# Failure mode is a slow start, never a wrong one — an unwritable or stale
+# cache is ignored. It grows to roughly 12MB per node/tool version and is never
+# cleaned up automatically; `rm -rf` it whenever you like.
+export NODE_COMPILE_CACHE="$HOME/.cache/node-compile-cache"
+
 # Set Aliases
 alias c="clear"
 alias icat="kitten icat"
