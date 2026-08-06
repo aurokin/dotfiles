@@ -45,6 +45,10 @@ awscli = "latest"
 # Pinned (same minimum_release_age reason as trunkyard); ~/code/pi-setup
 # requires ^0.82.1. Drop the pin once "latest" catches up past 0.82.1.
 "npm:@earendil-works/pi-coding-agent" = "0.82.1"
+# Prime Agent is distributed as an npm tarball on GitHub rather than npmjs.
+# Keep the launch release pinned while mise's minimum_release_age hides it;
+# the postinstall hydrates the tarball's runtime dependencies inside mise.
+"github:PrimeIntellect-ai/prime-agent" = { version = "v0.7.0", asset_pattern = "prime-agent-0.7.0.tgz", checksum = "sha256:88b6578518c72cd51a825bc80f28e0fef9a64c67de4a7d6fd7afd7ca1b34da0b", strip_components = 1, bin_path = "dist/bundle", rename_exe = { "cli.js" = "prime-agent" }, depends = ["node"], postinstall = "cd \"$MISE_TOOL_INSTALL_PATH\" && npm install --omit=dev --no-fund --no-audit --ignore-scripts=false" }
 "npm:agent-browser" = "latest"
 "npm:browse" = "latest"
 "npm:portless" = "latest"
