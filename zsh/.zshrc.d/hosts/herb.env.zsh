@@ -17,7 +17,12 @@ export HOMEBREW_REPOSITORY="$HOMEBREW_PREFIX/Homebrew"
 path_prepend_once "/home/linuxbrew/.linuxbrew/sbin"
 path_prepend_once "/home/linuxbrew/.linuxbrew/bin"
 path_prepend_once "$HOME/.local/bin"
+path_prepend_once "$HOME/.local/share/flatpak/exports/bin"
+path_prepend_once "/var/lib/flatpak/exports/bin"
 path_prepend_once "$HOME/.bin"
+
+# Make user/system Flatpak desktop entries visible to KDE and xdg-open.
+export XDG_DATA_DIRS="$HOME/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
 
 # The npm:browse tool currently resolves to pino 9.14.0, which mise/aube
 # correctly blocks because that backport lost the trusted-publisher evidence
