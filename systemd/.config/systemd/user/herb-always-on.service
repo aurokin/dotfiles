@@ -1,0 +1,13 @@
+[Unit]
+Description=Keep Herb KDE desktop awake
+After=plasma-powerdevil.service plasma-ksmserver.service
+PartOf=plasma-workspace.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/kde-inhibit --power --screenSaver /usr/bin/sleep infinity
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=plasma-workspace.target
