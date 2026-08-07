@@ -19,6 +19,12 @@ path_prepend_once "/home/linuxbrew/.linuxbrew/bin"
 path_prepend_once "$HOME/.local/bin"
 path_prepend_once "$HOME/.bin"
 
+# The npm:browse tool currently resolves to pino 9.14.0, which mise/aube
+# correctly blocks because that backport lost the trusted-publisher evidence
+# present on pino 10. Keep Herb on agent-browser rather than bypassing the
+# supply-chain downgrade check.
+export MISE_DISABLE_TOOLS="npm:browse"
+
 # Herb keeps a real KDE Wayland desktop running for CRT gaming and headed agent
 # tasks. Expose the live desktop to SSH-launched tools only when its sockets and
 # authorization files exist and the caller has not selected another display.
