@@ -43,8 +43,8 @@ awscli = "latest"
 # (hosts/koopa.env.zsh) to keep its pnpm-linked dev build first on PATH.
 "npm:diffwarden" = "0.5.0"
 # Pinned (same minimum_release_age reason as trunkyard); ~/code/pi-setup
-# requires ^0.82.1. Drop the pin once "latest" catches up past 0.82.1.
-"npm:@earendil-works/pi-coding-agent" = "0.82.1"
+# requires ^0.84.1. Drop the pin once "latest" catches up past 0.84.1.
+"npm:@earendil-works/pi-coding-agent" = "0.84.1"
 # Prime Agent is distributed as an npm tarball on GitHub rather than npmjs.
 # Keep the launch release pinned while mise's minimum_release_age hides it;
 # the postinstall hydrates the tarball's runtime dependencies inside mise.
