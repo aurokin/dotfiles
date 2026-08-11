@@ -29,7 +29,9 @@ awscli = "latest"
 
 # Node CLIs
 # OpenCode v2 preview; track the upstream beta channel until v2 becomes stable.
-"npm:opencode-ai" = "beta"
+# fleet-update force-reinstalls this dist-tag because mise cannot detect tag movement;
+# allow its reviewed postinstall so the resulting CLI is usable.
+"npm:opencode-ai" = { version = "beta", allow_builds = ["opencode-ai"] }
 "npm:@fsouza/prettierd" = "latest"
 "npm:@vue/typescript-plugin" = "latest"
 "npm:typescript-language-server" = "latest"
