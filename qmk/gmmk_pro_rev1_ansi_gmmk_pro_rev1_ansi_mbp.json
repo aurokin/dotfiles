@@ -4,6 +4,11 @@
   "version": 1,
   "keyboard": "gmmk/pro/rev1/ansi",
   "keymap": "gmmk_pro_rev1_ansi_gmmk_pro_rev1_ansi_mbp",
+  "config": {
+    "features": {
+      "nkro": false
+    }
+  },
   "macros": [
     [
       {"action": "tap", "keycodes": ["SCRL"]},
@@ -161,7 +166,7 @@
       "KC_PSCR",
       "KC_LBRC",
       "KC_RBRC",
-      "NK_OFF",
+      "KC_NO",
       "UG_SPDD",
       "KC_NO",
       "KC_LEFT",

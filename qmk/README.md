@@ -60,10 +60,12 @@ which covers normal gaming input while retaining compatibility with the ATEN and
 pre-boot firmware. QMK's NKRO mode is not required for ordinary gaming and can
 break keyboard input through some KVMs and BIOSes.
 
-The Fn-layer key in the far-right column aligned with the Q row is deliberately
-mapped to `NK_OFF`. It previously used `NK_ON`, which persisted NKRO in EEPROM
-and caused the ATEN to lose punctuation, function keys, and switching macros.
-This key can now only restore the compatible 6KRO mode, not enable NKRO.
+NKRO support is explicitly disabled in both maintained keymaps, and the former
+Fn-layer `NK_ON` position in the far-right column aligned with the Q row is
+mapped to `KC_NO`. The old binding persisted NKRO in EEPROM and caused the ATEN
+to lose punctuation, function keys, and switching macros. Future firmware now
+exposes only the standard 6KRO keyboard report, so there is no persistent NKRO
+mode or key binding that can recreate the failure.
 
 If an already-flashed keyboard has incompatible persistent USB state, clear its
 QMK EEPROM without replacing the keymap:
