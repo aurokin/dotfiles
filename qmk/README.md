@@ -52,6 +52,31 @@ selection sends the ATEN sequence `Scroll Lock`, `Scroll Lock`, host number,
 
 Normal Right Shift is unchanged; only its Fn-layer action selects host 4.
 
+### Rollover Compatibility
+
+Keep these keyboards in the default 6KRO mode while using the ATEN CS724KM.
+Standard HID reports support six ordinary keys plus all eight modifiers at once,
+which covers normal gaming input while retaining compatibility with the ATEN and
+pre-boot firmware. QMK's NKRO mode is not required for ordinary gaming and can
+break keyboard input through some KVMs and BIOSes.
+
+The Fn-layer key in the far-right column aligned with the Q row is deliberately
+mapped to `NK_OFF`. It previously used `NK_ON`, which persisted NKRO in EEPROM
+and caused the ATEN to lose punctuation, function keys, and switching macros.
+This key can now only restore the compatible 6KRO mode, not enable NKRO.
+
+If an already-flashed keyboard has incompatible persistent USB state, clear its
+QMK EEPROM without replacing the keymap:
+
+1. Connect the keyboard directly to a computer, bypassing the ATEN.
+2. Unplug the keyboard.
+3. Hold `Esc` while reconnecting it for about three seconds.
+4. Release `Esc`, then unplug and reconnect normally once.
+5. Verify punctuation directly before reconnecting the ATEN keyboard port.
+
+This also resets saved lighting preferences; restore those after keyboard/KVM
+operation is verified.
+
 ## Build Tool PATH
 
 The QMK toolchain is installed through Homebrew, but the compiler tools are keg-only. Use this PATH prefix when compiling or flashing:
