@@ -2,14 +2,10 @@
 
 brew install --cask android-platform-tools
 brew install --cask balenaetcher
-brew install --cask alacritty
 brew install --cask ghostty
 brew install --cask kitty
-brew install --cask antigravity
-brew install --cask claude
 brew install --cask codex-app
 brew install --cask github-copilot-app
-brew install --cask steipete/tap/codexbar
 brew install --cask t3-code
 brew install --cask font-monaspace-nerd-font
 brew install --cask font-monaspice-nerd-font
@@ -23,11 +19,9 @@ brew install --cask discord
 brew install --cask sonobus
 brew install --cask moonlight
 brew install --cask openmtp
-brew install --cask opencode-desktop
 brew install --cask steam
 brew install --cask retroarch
 brew install --cask the-unarchiver
-brew install --cask caffeine
+# Laptop-only: brew install --cask caffeine
 brew install --cask docker-desktop
-brew install --cask warp
 brew install --cask zen
