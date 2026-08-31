@@ -7,6 +7,14 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 fi
 
 brew install mise
+# Stable non-mise Node LTS for essential services. Interactive shells keep the
+# mise Node path first; service units target Homebrew's stable opt/node@24 path.
+brew install node@24
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  # Caddy's official docs list Homebrew for macOS. Linux services use the
+  # distro-native Caddy package and systemd unit instead.
+  brew install caddy
+fi
 brew install swiftlint
 brew install swiftformat
 brew install swift-format

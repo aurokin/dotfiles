@@ -56,7 +56,9 @@ awscli = "latest"
 # Direct Firecrawl invocation for bounded scrape/map/crawl workflows. The
 # credential is injected per command by the dotfiles-private zsh wrapper.
 "npm:firecrawl-cli" = "latest"
-"npm:portless" = "latest"
+# Fleet-essential development router. Keep interactive use under mise, but pin
+# the CLI to the same reviewed version used by the dotfiles-owned service.
+"npm:portless" = "0.15.6"
 "npm:hunkdiff" = "latest"
 "npm:vercel" = "latest"
 # Linear CLI, for pi only — pi has no MCP, so it drives Linear through a CLI

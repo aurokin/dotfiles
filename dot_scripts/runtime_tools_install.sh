@@ -7,8 +7,6 @@ if ! command -v mise >/dev/null 2>&1; then
   exit 1
 fi
 
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-
 # This script expects tools to be declared in ~/.config/mise/config.toml (stowed from this repo).
 mise install -y
 mise upgrade -y
@@ -108,15 +106,9 @@ fi
 
 mise reshim
 
-short_hostname="$(uname -n)"
-short_hostname="${short_hostname%%.*}"
-
-if [[ "$short_hostname" == "koopa" || "$short_hostname" == "luma" ]]; then
-  # This helper lives beside this script; the LAN service refresh is best-effort.
-  if ! "$script_dir/portless_service_install.sh"; then
-    echo "Warning: Portless launchd service refresh failed; continuing runtime tool install." >&2
-  fi
-fi
+# Portless is fleet-essential infrastructure. Its service is reconciled by the
+# dotfiles-owned fleet service workflow, not by the upstream installer from a
+# moving mise Node/Portless path. This script owns interactive CLIs only.
 
 echo "Resolved tools:"
 command -v opencode codex claude cursor-agent agy grok agent agent-browser portless prettierd pod fastlane beautysh http httpie ranger gemini copilot || true
