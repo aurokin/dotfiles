@@ -1,0 +1,4 @@
+# Fleet development ingress. Dynamic route ownership stays in Portless.
+:80 {
+	reverse_proxy 127.0.0.1:1355
+}
