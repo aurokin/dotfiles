@@ -34,7 +34,7 @@ if [[ -f /etc/debian_version ]]; then
     exit 1
   fi
   (cd "$tmp" && sha512sum --check expected.txt)
-  sudo apt-get install -y "$tmp/$asset"
+  sudo env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y "$tmp/$asset"
 elif [[ -f /etc/arch-release ]]; then
   sudo pacman -S --needed --noconfirm caddy
 else
