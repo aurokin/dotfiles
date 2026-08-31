@@ -42,7 +42,7 @@ cleanup() { rm -f "$candidate"; }
 trap cleanup EXIT
 cp "$source_config" "$candidate"
 $caddy_bin fmt --overwrite "$candidate" >/dev/null
-$caddy_bin validate --config "$candidate" >/dev/null
+$caddy_bin validate --adapter caddyfile --config "$candidate" >/dev/null
 
 echo "Validated Caddy $CADDY_VERSION candidate for port 80 -> 127.0.0.1:1355."
 if [[ "$apply" != 1 ]]; then
@@ -64,7 +64,7 @@ if sudo test -f /etc/caddy/Caddyfile; then
 fi
 sudo install -d -m 0755 /etc/caddy
 sudo install -o root -g root -m 0644 "$candidate" /etc/caddy/Caddyfile
-sudo "$caddy_bin" validate --config /etc/caddy/Caddyfile >/dev/null
+sudo "$caddy_bin" validate --adapter caddyfile --config /etc/caddy/Caddyfile >/dev/null
 sudo systemctl enable caddy.service >/dev/null
 if systemctl is-active --quiet caddy.service; then
   sudo systemctl reload caddy.service
