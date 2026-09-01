@@ -1,7 +1,7 @@
 # Fleet Essential Services
 
-Document type: implementation plan and ownership contract.
-Last reviewed: 2026-08-31.
+Document type: deployed ownership contract and remaining validation plan.
+Last reviewed: 2026-09-01.
 
 ## Scope
 
@@ -66,7 +66,7 @@ Platform services:
 - macOS: user LaunchAgent; starts at login.
 - Linux: systemd user service with lingering enabled.
 
-The current root Portless services on Haste and Herb are migration sources only. Remove them only after the new user service and Caddy path pass readback and reboot tests.
+Legacy root Portless services on Koopa, Luma, Haste, and Herb were retired or disabled after transactional migration. All eight target hosts now use the dotfiles-owned user service. Retired service files remain available as rollback evidence; no legacy root Portless process is active.
 
 ## Caddy service contract
 
@@ -83,7 +83,7 @@ Caddy preserves the request Host header and WebSocket upgrades. It has no dynami
 Package sources:
 
 - macOS: Homebrew Caddy is the accepted source; Caddy documents it as community-maintained for macOS. Dotfiles own the reviewed LaunchDaemon/config deployment.
-- Ubuntu/Debian: use Caddy's official distro package and systemd service.
+- Ubuntu/Debian: use the exact reviewed official Caddy `.deb` and its native systemd service.
 - CachyOS/Arch: use the native `caddy` package and systemd service.
 
 Do not use Linuxbrew Caddy as the final Linux system-service package. The Linuxbrew binary installed for the Haste pilot may remain until native-package cutover is accepted.
@@ -159,14 +159,23 @@ Audit is read-only and may run on a schedule. Apply is manual and transactional:
 
 Never update Node, Portless, Caddy, T3, and Codex across every host in one transaction. Preserve attribution and a known-good rollback.
 
-## Rollout order
+## Deployed state and remaining gates
 
-1. Bring Luma online and complete a read-only inventory.
-2. Inventory/update Metapod's Portless/T3 package state without starting duplicate T3 backends.
-3. Land and test stable Node plus dotfiles-owned Portless service templates.
-4. Canary the new Portless service on Saur, then Koopa, then Haste.
-5. Land Caddy native package/service templates; repeat HTTP/WebSocket/cleanup tests.
-6. Complete Astro, linked-worktree, Webmux, and static-alias compatibility gates.
-7. Back up Technitium and add only pilot wildcard records.
-8. Expand sequentially to the remaining fixed hosts.
-9. Handle Luma's roaming behavior separately before promising off-LAN host URLs.
+Deployed on 2026-09-01:
+
+1. Stable non-mise `node@24` installed on all eight hosts; reviewed runtime resolved to Node `24.20.0`.
+2. Portless `0.15.6` user services deployed on Koopa, Metapod, Luma, Haste Linux, Mander, Tortle, Saur, and Herb.
+3. Caddy `2.11.4` system services deployed on all eight hosts.
+4. Saur durable canary passed local/cross-host HTTP, WebSockets, abrupt child cleanup, and zero-restart checks.
+5. Eight scoped Technitium wildcard CNAMEs deployed after a verified mini backup.
+6. Linux T3 stable-Node overrides deployed on idle Saur, Mander, Tortle, and Herb. Haste is deferred while active Codex work is attached.
+7. Standalone Codex converged to `0.151.0`; Herb was migrated from npm ownership to standalone and authenticated.
+
+Still required:
+
+1. Reboot persistence and service readback for launchd and systemd classes.
+2. Astro, linked-worktree, Webmux, and real static-alias compatibility gates.
+3. Haste Linux remote-ingress and T3 stable-Node checks when Linux is online.
+4. Luma remote-ingress check when reachable; roaming URLs remain home-LAN scoped.
+5. Metapod local first-launch approval so T3 can initialize its desktop backend.
+6. Implement the read-only fleet audit and transactional update-agent command surface described above.
