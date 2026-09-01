@@ -169,7 +169,7 @@ Deployed on 2026-09-01:
 4. Saur durable canary passed local/cross-host HTTP, WebSockets, abrupt child cleanup, and zero-restart checks.
 5. Eight scoped Technitium wildcard CNAMEs deployed after a verified mini backup.
 6. Linux T3 stable-Node overrides deployed on idle Saur, Mander, Tortle, and Herb. Haste is deferred while active Codex work is attached.
-7. Standalone Codex converged to `0.151.0`; Herb was migrated from npm ownership to standalone and authenticated.
+7. Codex target is `0.151.0`. Tortle, Saur, Herb, Metapod, Haste, and Luma reached it; Herb was migrated from npm ownership to standalone and authenticated. Koopa remains `0.150.1` while long-lived Codex/app-server work is active. Mander's bootstrapped Remote Control updater advanced it to `0.152.0`; its separate updater loop was stopped without stopping the app-server.
 
 Still required:
 
@@ -178,4 +178,5 @@ Still required:
 3. Haste Linux remote-ingress and T3 stable-Node checks when Linux is online.
 4. Luma remote-ingress check when reachable; roaming URLs remain home-LAN scoped.
 5. Metapod local first-launch approval so T3 can initialize its desktop backend.
-6. Implement the read-only fleet audit and transactional update-agent command surface described above.
+6. Reconcile Koopa and Mander to the next approved Codex canary when active work permits. Codex currently has no supported switch for the bootstrapped Remote Control updater; audit and stop `pid-update-loop` after Mander bootstrap/reboot until upstream adds one.
+7. Implement the read-only fleet audit and transactional update-agent command surface described above.
