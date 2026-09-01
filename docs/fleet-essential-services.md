@@ -168,15 +168,14 @@ Deployed on 2026-09-01:
 3. Caddy `2.11.4` system services deployed on all eight hosts.
 4. Saur durable canary passed local/cross-host HTTP, WebSockets, abrupt child cleanup, and zero-restart checks.
 5. Eight scoped Technitium wildcard CNAMEs deployed after a verified mini backup.
-6. Linux T3 stable-Node overrides deployed on idle Saur, Mander, Tortle, and Herb. Haste is deferred while active Codex work is attached.
-7. Codex target is `0.151.0`. Tortle, Saur, Herb, Metapod, Haste, and Luma reached it; Herb was migrated from npm ownership to standalone and authenticated. Koopa remains `0.150.1` while long-lived Codex/app-server work is active. Mander's bootstrapped Remote Control updater advanced it to `0.152.0`; its separate updater loop was stopped without stopping the app-server.
+6. Linux T3 stable-Node overrides and disabled provider-update advisories are active on Haste, Saur, Mander, Tortle, and Herb. The same advisory policy is active on Metapod/Luma and persisted for Koopa's next controlled T3 restart.
+7. Codex target is `0.151.0`. Tortle, Saur, Herb, Metapod, Haste, and Luma reached it; Herb and Metapod were migrated from npm ownership to standalone. Koopa remains `0.150.1` while long-lived Codex/app-server work is active. Mander's bootstrapped Remote Control updater advanced it to `0.152.0`; its separate updater loop was stopped without stopping the app-server.
+8. Haste Linux passed a real reboot-persistence check for Portless, Caddy, wildcard ingress, T3, and Codex before its T3 Node/policy reconciliation.
 
 Still required:
 
-1. Reboot persistence and service readback for launchd and systemd classes.
+1. Reboot persistence and service readback for macOS launchd and Ubuntu systemd classes; CachyOS/systemd passed on Haste.
 2. Astro, linked-worktree, Webmux, and real static-alias compatibility gates.
-3. Haste Linux remote-ingress and T3 stable-Node checks when Linux is online.
-4. Luma remote-ingress check when reachable; roaming URLs remain home-LAN scoped.
-5. Metapod local first-launch approval so T3 can initialize its desktop backend.
-6. Reconcile Koopa and Mander to the next approved Codex canary when active work permits. Codex currently has no supported switch for the bootstrapped Remote Control updater; audit and stop `pid-update-loop` after Mander bootstrap/reboot until upstream adds one.
-7. Implement the read-only fleet audit and transactional update-agent command surface described above.
+3. Koopa T3 restart when active work permits so its persisted no-advisory setting becomes live.
+4. Reconcile Koopa and Mander to the next approved Codex canary when active work permits. Codex currently has no supported switch for the bootstrapped Remote Control updater; audit and stop `pid-update-loop` after Mander bootstrap/reboot until upstream adds one.
+5. Implement the read-only fleet audit and transactional update-agent command surface described above.
