@@ -2,6 +2,11 @@
 
 set -euo pipefail
 
+# The hardened installer requires explicit idle/restart authorization.
+# Refuse BEFORE package installs, legacy shutdown, or configuration changes.
+echo "Legacy migration paused: a separately reviewed idle/ownership cutover is required; no changes made." >&2
+exit 3
+
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 if [[ "${1:-}" != "--apply" || -n "${2:-}" ]]; then
   echo "Usage: $0 --apply" >&2

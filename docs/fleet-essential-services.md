@@ -1,7 +1,8 @@
 # Fleet Essential Services
 
 Document type: deployed ownership contract and remaining validation plan.
-Last reviewed: 2026-09-01.
+Deployment acceptance baseline: 2026-09-01.
+Maintenance-plan reassessment: 2026-09-04. This is not a fresh full-fleet acceptance.
 
 ## Scope
 
@@ -138,7 +139,9 @@ Desktop app management:
 
 ## Update-agent design
 
-The update system has two commands/phases:
+The following is a proposed interface, not an implemented fleet update engine. The bounded hardening pass is tracked in [fleet-maintenance-plan.md](fleet-maintenance-plan.md), with [implementation results and remaining gates](fleet-maintenance-results.md). No live upgrade or restart is authorized by that implementation pass.
+
+The proposed update system has two commands/phases:
 
 ```text
 fleet-services audit
@@ -176,6 +179,8 @@ Still required:
 
 1. Reboot persistence and service readback for macOS launchd and Ubuntu systemd classes; CachyOS/systemd passed on Haste.
 2. Astro, linked-worktree, Webmux, and real static-alias compatibility gates.
-3. Koopa T3 restart when active work permits so its persisted no-advisory setting becomes live.
-4. Reconcile Koopa and Mander to the next approved Codex canary when active work permits. Codex currently has no supported switch for the bootstrapped Remote Control updater; audit and stop `pid-update-loop` after Mander bootstrap/reboot until upstream adds one.
-5. Implement the read-only fleet audit and transactional update-agent command surface described above.
+3. Verify effective Koopa provider settings without another restart. A read-only September 4 reassessment found that Koopa had already rebooted and restarted T3 with the advisory setting persisted as false. That setting suppresses advisories, not every possible provider update path.
+4. Reconcile executable ownership before selecting the next Codex canary. September 4 readback found Koopa's standalone at `0.153.2` while its login shell selected npm `0.150.1`. Mander's standalone was `0.152.0` but one noninteractive login-shell probe could not find it. Do not downgrade to the old pin merely to converge versions. The absent Mander updater process is not durable enforcement; reevaluate supported upstream controls before any lifecycle change.
+5. Implement and verify the read-only fleet audit first. Harden individual installers with isolated failure tests before building fleet-wide apply.
+
+These September 4 observations do not refresh the September 1 full deployment acceptance. Offline hosts remain unknown. macOS LaunchAgents and desktop-owned T3 start with a user session, not necessarily before login after a cold boot. Desktop updater ownership, private TLS, and Luma roaming remain separate decisions.
