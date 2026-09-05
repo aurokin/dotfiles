@@ -27,3 +27,4 @@
 	defaultBranch = main
 [include]
     path = ~/.gitconfiglocal
+    path = ~/.gitconfig-github-work
