@@ -84,7 +84,7 @@ def launch_state(domain, label):
         # Observed during bootstrap/restart on macOS 26. A pending spawn is
         # neither inactive nor ready. Allow the default 10-second throttle to
         # settle, but never retry authorization failures or unknown states.
-        if state and state[1] in ('spawn scheduled', 'xpcproxy'):
+        if state and state[1] in ('spawn scheduled', 'xpcproxy', 'SIGTERMed'):
             if attempt < 29:
                 time.sleep(0.5)
             continue

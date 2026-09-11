@@ -141,18 +141,18 @@ class LaunchState(unittest.TestCase):
             with self.subTest(final=final):
                 responses = [subprocess.CompletedProcess([], 0, 'domain exists\n', '')]
                 responses += [subprocess.CompletedProcess([], 0, f'state = {state}\n', '')
-                              for state in ('spawn scheduled', 'xpcproxy')]
+                              for state in ('spawn scheduled', 'xpcproxy', 'SIGTERMed')]
                 responses.append(final)
                 with patch.object(m.subprocess, 'run', side_effect=responses) as run, \
                         patch.object(m.time, 'sleep') as sleep:
                     result = m.launch_state('gui/501', self.label)
                 self.assertEqual(result['loaded'], final.returncode == 0)
                 self.assertEqual(result['active'], final.returncode == 0)
-                self.assertEqual(run.call_count, 4)
-                self.assertEqual(sleep.call_count, 2)
+                self.assertEqual(run.call_count, 5)
+                self.assertEqual(sleep.call_count, 3)
 
     def test_persistent_transitions_fail_closed_with_bounded_retries(self):
-        for state in ('spawn scheduled', 'xpcproxy'):
+        for state in ('spawn scheduled', 'xpcproxy', 'SIGTERMed'):
             with self.subTest(state=state):
                 with patch.object(m.subprocess, 'run', return_value=
                                   subprocess.CompletedProcess([], 0, f'state = {state}\n', '')) as run, \
