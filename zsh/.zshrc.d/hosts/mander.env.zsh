@@ -13,3 +13,11 @@ if [[ -d "$linuxbrew_bin" ]]; then
   esac
 fi
 unset linuxbrew_bin
+
+# Standalone Codex must also resolve in non-interactive SSH commands.
+if [[ -d "$HOME/.local/bin" ]]; then
+  case ":$PATH:" in
+    *":$HOME/.local/bin:"*) ;;
+    *) export PATH="$HOME/.local/bin:$PATH" ;;
+  esac
+fi
