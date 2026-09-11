@@ -66,19 +66,35 @@ def unit_state(name, user=True):
 def launch_state(domain, label):
     # Check the domain first: a broken/unavailable manager is not an absent job.
     run('launchctl', 'print', domain)
-    result = run('launchctl', 'print', f'{domain}/{label}', check=False)
-    if result.returncode:
-        if 'Could not find service' not in result.stderr:
-            raise Refusal('Cannot establish launchd ownership')
-        return {'active': False, 'loaded': False, 'pid': 0}
-    pid = re.search(r'^\s*pid = (\d+)\s*$', result.stdout, re.M)
-    state = re.search(r'^\s*state = (.+)$', result.stdout, re.M)
-    if not state or state[1] not in ('running', 'not running', 'waiting', 'exited'):
-        raise Refusal('Unknown launchd state')
-    if state[1] == 'running' and not pid:
-        raise Refusal('Missing launchd PID')
-    return {'active': state[1] == 'running', 'loaded': True, 'pid': int(pid[1]) if pid else 0,
-            'description': result.stdout}
+    for attempt in range(30):
+        result = run('launchctl', 'print', f'{domain}/{label}', check=False)
+        if result.returncode:
+            # launchctl print uses 113 for an absent service. macOS 26 prefixes
+            # the diagnostic with "Bad request."; that line alone proves nothing.
+            suffix = 'system' if domain == 'system' else None
+            if re.fullmatch(r'gui/\d+', domain):
+                suffix = f'user gui: {domain.split("/")[1]}'
+            missing = f'Could not find service "{label}" in domain for {suffix}\n'
+            if (result.returncode != 113 or result.stdout or suffix is None or
+                    result.stderr not in (missing, 'Bad request.\n' + missing)):
+                raise Refusal('Cannot establish launchd ownership')
+            return {'active': False, 'loaded': False, 'pid': 0}
+        pid = re.search(r'^\s*pid = (\d+)\s*$', result.stdout, re.M)
+        state = re.search(r'^\s*state = (.+)$', result.stdout, re.M)
+        # Observed during bootstrap/restart on macOS 26. A pending spawn is
+        # neither inactive nor ready. Allow the default 10-second throttle to
+        # settle, but never retry authorization failures or unknown states.
+        if state and state[1] in ('spawn scheduled', 'xpcproxy'):
+            if attempt < 29:
+                time.sleep(0.5)
+            continue
+        if not state or state[1] not in ('running', 'not running', 'waiting', 'exited'):
+            raise Refusal('Unknown launchd state')
+        if state[1] == 'running' and not pid:
+            raise Refusal('Missing launchd PID')
+        return {'active': state[1] == 'running', 'loaded': True, 'pid': int(pid[1]) if pid else 0,
+                'description': result.stdout}
+    raise Refusal('launchd state did not settle')
 
 
 def listeners(port):
