@@ -1,11 +1,13 @@
 [settings]
-idiomatic_version_file_enable_tools = ["python"]
+idiomatic_version_file_enable_tools = ["node", "python", "rust"]
 
 [tools]
 bun = "latest"
 java = "21"
+maven = "latest"
 node = "24"
 "npm:pnpm" = "latest"
+dotnet = "10"
 go = "latest"
 lua = "latest"
 rust = "stable"
