@@ -2,6 +2,14 @@
 
 These helpers are implemented and tested in isolation. No live installation, update, restart, or ownership change was performed for their validation. Do not treat unit-test success as a real systemd/launchd cutover or rollback test.
 
+## T3 native-runtime compatibility
+
+T3 `0.0.42` ships a native runtime, not the older `node_modules/t3/dist/bin.mjs` layout. `install_t3_node_override.sh` and its transaction engine remain Node-specific. Do not use them on a native T3 deployment or recreate `service-node.conf`. The shared T3 pin remains `0.0.40` pending a reviewed native-aware installer; it is not the latest upstream release or the version on every host.
+
+A host-specific native migration was verified on Herb on 2026-09-22. It backed up the service, drop-ins, settings and consistent SQLite state, removed only the exact obsolete stable-Node override, and used the verified native binary's supported `update 0.0.42 --base-dir <existing-home> --yes` command. The stock updater owns the main unit's native `__service-launcher` ExecStart. Network and unrelated unit settings were preserved. Executable identity, single listener, exact backend version, and a real T3-to-Codex request passed.
+
+Do not treat a zero installer exit or HTTP homepage as acceptance. The old Node override can keep a newly selected native runtime from starting even when the deprecated updater reports success. Check T3's own active-work state and stop-propagation relationships before an authorized T3-only restart; do not stop games or unrelated agents to satisfy a conservative generic guard. Database migrations require explicit preservation checks, and service rollback alone does not prove arbitrary cross-schema database rollback is safe.
+
 ## Read-only default
 
 ```sh
