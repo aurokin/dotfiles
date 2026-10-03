@@ -37,9 +37,6 @@ curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=true sh
 echo "Installing/updating Claude Code..."
 curl -fsSL https://claude.ai/install.sh | bash
 
-echo "Installing/updating Cursor Agent..."
-curl -fsSL https://cursor.com/install | bash
-
 echo "Installing/updating Antigravity CLI..."
 curl -fsSL https://antigravity.google/cli/install.sh | bash
 
@@ -111,13 +108,12 @@ mise reshim
 # moving mise Node/Portless path. This script owns interactive CLIs only.
 
 echo "Resolved tools:"
-command -v opencode codex claude cursor-agent agy grok agent agent-browser portless prettierd pod fastlane beautysh http httpie ranger gemini copilot || true
+command -v opencode codex claude agy grok agent agent-browser portless prettierd pod fastlane beautysh http httpie ranger gemini copilot || true
 
 echo "Tool versions:"
 opencode --version || true
 codex --version || true
 claude --version || true
-cursor-agent --version || true
 agy --version || true
 grok --version || true
 agent-browser --version || true

@@ -81,7 +81,6 @@ alias super-claude="$HOME/code/super-claude/client/super-claude"
 alias scc="$HOME/code/super-claude/client/super-claude --dangerously-skip-permissions"
 alias super-claude-menu="$HOME/code/super-claude/client/super-claude-menu"
 alias sccm="$HOME/code/super-claude/client/super-claude-menu --dangerously-skip-permissions"
-alias ca="cursor-agent --force"
 alias gpt="codex --dangerously-bypass-approvals-and-sandbox"
 # Vanilla (control) modes: same client, auth, history, MCP, hooks and other
 # skills — only the cross-provider orchestrate/consult skills are off for the
