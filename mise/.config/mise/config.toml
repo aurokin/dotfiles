@@ -38,8 +38,6 @@ awscli = "latest"
 "npm:@vue/typescript-plugin" = "latest"
 "npm:typescript-language-server" = "latest"
 "npm:typescript" = "latest"
-"npm:@google/gemini-cli" = "latest"
-"npm:@github/copilot" = "latest"
 "npm:@googleworkspace/cli" = "latest"
 "npm:skills" = "latest"
 # Pinned (same minimum_release_age reason as trunkyard); bump the pin when
