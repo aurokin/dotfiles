@@ -12,3 +12,14 @@ if [[ -f "$HOST_ENV_FILE" ]]; then
   source "$HOST_ENV_FILE"
 fi
 unset PC_NAME HOST_ENV_FILE
+
+# Agents and SSH execs need the same scoped wrappers as interactive shells.
+# This file defines functions and credential references only; it does not
+# fetch secrets or authenticate. The executable also serves bash/other shells.
+case ":$PATH:" in
+  *":$HOME/.local/bin:"*) ;;
+  *) export PATH="$HOME/.local/bin:$PATH" ;;
+esac
+if [[ -f "$HOME/.zshrc.d/secrets.zsh" ]]; then
+  source "$HOME/.zshrc.d/secrets.zsh"
+fi
