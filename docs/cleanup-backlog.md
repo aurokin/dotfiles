@@ -72,8 +72,8 @@ The tell that a script is a project: it has its own tests in `tests/`.
 
 (Deferred as a group: revisit once the extraction work is finished.)
 
-- `~/.config/tprompt/prompts/` — feature request filed (Linear AUR-702);
-  move the prompts once the split workflow lands.
+- `~/.config/tprompt/prompts/` — DONE (2026-07-20, tprompt v0.7.0 /
+  AUR-702); see the tprompt prompts move under Open follow-ups.
 - `~/.config/diffwarden/diffwarden.config.json` — DONE (2026-07-21,
   diffwarden v0.5.0 / AUR-703): base+overlay split fleet-wide. The base
   config is fully portable (whole reviewer catalog, droid machineId
