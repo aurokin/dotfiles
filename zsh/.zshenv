@@ -23,3 +23,8 @@ esac
 if [[ -f "$HOME/.zshrc.d/secrets.zsh" ]]; then
   source "$HOME/.zshrc.d/secrets.zsh"
 fi
+
+# Optional work overlay, stowed by the private dotfiles-github-work repo.
+if [[ -f "$HOME/.zshrc.d/github-work.env.zsh" ]]; then
+  source "$HOME/.zshrc.d/github-work.env.zsh"
+fi
