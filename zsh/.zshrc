@@ -47,9 +47,17 @@ else
 fi
 
 if [[ -x "$brew_bin" ]]; then
-    eval "$("$brew_bin" shellenv)"
+    if [[ "${HOMEBREW_PREFIX:-}/bin/brew" == "$brew_bin" &&
+          -n "${HOMEBREW_CELLAR:-}" && -n "${HOMEBREW_REPOSITORY:-}" ]]; then
+        # Reuse inherited setup, restoring paths reordered by login profiles.
+        path=("$HOMEBREW_PREFIX/bin" "$HOMEBREW_PREFIX/sbin" "${path[@]}")
+        fpath=("$HOMEBREW_PREFIX/share/zsh/site-functions" "${fpath[@]}")
+        export FPATH
+    else
+        eval "$("$brew_bin" shellenv zsh)"
+    fi
 elif command -v brew >/dev/null 2>&1; then
-    eval "$(brew shellenv)"
+    eval "$(brew shellenv zsh)"
 fi
 
 # Starship
